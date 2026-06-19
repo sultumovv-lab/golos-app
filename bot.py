@@ -72,6 +72,10 @@ logger = logging.getLogger("golos-bot")
 #  База подписчиков (SQLite)
 # --------------------------------------------------------------------------- #
 def db_init() -> None:
+    # Создаём папку для базы, если её ещё нет (например, /data)
+    folder = os.path.dirname(DB_PATH)
+    if folder:
+        os.makedirs(folder, exist_ok=True)
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute(
             """
