@@ -3,29 +3,39 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Голос на миллион</title>
+  <title>Rezon — голос, речь, уверенность</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Montserrat:wght@600;700;800;900&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #090A15; --card: #11132A; --border: #1A1D3D;
-      --primary: #6366F1; --gold: #F59E0B; --green: #10B981;
-      --pink: #EC4899; --purple: #8B5CF6;
-      --text: #E2E8F0; --muted: #6B7499; --dim: #374161;
+      --bg: #1C1A22; --card: #28252F; --border: #38343F;
+      --primary: #E85D43; --gold: #FF9F45; --green: #4ADE80;
+      --pink: #FF7A5C; --purple: #FFB199;
+      --text: #FFFFFF; --muted: #9A93A0; --dim: #6E6676;
+      --secondary: #FFB199; --coral-1: #FF7A5C; --coral-3: #C9492F;
+      --nav-bg: #161419;
+      --grad: linear-gradient(135deg,#FF7A5C 0%,#E85D43 55%,#C9492F 100%);
+      --font-head: 'Montserrat', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+      font-family: var(--font-body);
       background: var(--bg); color: var(--text);
       min-height: 100vh; overflow-x: hidden;
       max-width: 430px; margin: 0 auto;
     }
     ::-webkit-scrollbar { display: none; } * { scrollbar-width: none; }
 
+    h1, h2, h3, .page-title, .stat-v, .price, .cat-name, .lbl, .nav-label, #breath-num { font-family: var(--font-head); }
+
     /* NAV */
     .nav {
       position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
       width: 100%; max-width: 430px;
-      background: #0C0D1E; border-top: 1px solid var(--border);
+      background: #161419; border-top: 1px solid var(--border);
       display: flex; padding: 8px 0 calc(16px + env(safe-area-inset-bottom)); z-index: 100;
     }
     .nav-btn { flex: 1; background: none; border: none; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 0; }
@@ -35,7 +45,7 @@
 
     /* SCREENS */
     .screen { padding-bottom: 84px; }
-    .hero { background: linear-gradient(180deg,#0d0f28 0%,var(--bg) 100%); padding: 52px 20px 20px; }
+    .hero { background: linear-gradient(180deg,#211E29 0%,var(--bg) 100%); padding: 52px 20px 20px; }
     #wave { width: 100%; height: 52px; display: block; }
 
     /* CARDS */
@@ -45,7 +55,7 @@
     /* BUTTONS */
     .btn { display: block; width: 100%; padding: 15px 24px; border: none; border-radius: 16px; font-size: 15px; font-weight: 700; color: white; cursor: pointer; text-align: center; font-family: inherit; transition: opacity .15s; }
     .btn:active { opacity: .8; }
-    .btn-p { background: var(--primary); }
+    .btn-p { background: var(--grad); box-shadow: 0 6px 18px rgba(232,93,67,.32); }
     .btn-g { background: var(--green); }
     .btn-pk { background: var(--pink); }
     .btn-r { background: #EF4444; }
@@ -93,7 +103,7 @@
     .ex-body { flex: 1; padding: 0 20px 24px; display: flex; flex-direction: column; }
 
     /* TEXT BLOCK */
-    .text-block { background: linear-gradient(135deg,#191b36,#13152a); border: 1px solid var(--border); border-radius: 18px; padding: 24px; flex: 1; margin-bottom: 14px; }
+    .text-block { background: linear-gradient(135deg,#2A2730,#211E29); border: 1px solid var(--border); border-radius: 18px; padding: 24px; flex: 1; margin-bottom: 14px; }
     .read-text { color: var(--text); font-size: 18px; line-height: 1.85; font-weight: 600; white-space: pre-line; letter-spacing: .02em; }
 
     /* BREATHING */
@@ -116,7 +126,7 @@
     .done-screen { background: var(--bg); min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; text-align: center; position: fixed; top:0;left:0;right:0;bottom:0;z-index:300; }
 
     /* TRANSCRIPT */
-    .transcript { background: #0e1022; border-radius: 12px; padding: 14px; margin-bottom: 14px; }
+    .transcript { background: #211E29; border-radius: 12px; padding: 14px; margin-bottom: 14px; }
 
     /* COACH */
     .coach-screen { display: flex; flex-direction: column; height: 100vh; position: fixed; top:0;left:0;right:0;bottom:0;z-index:50;background:var(--bg); max-width:430px;margin:0 auto; }
@@ -138,13 +148,13 @@
     /* HEATMAP */
     .heatmap { display: grid; grid-template-columns: repeat(7,1fr); gap: 5px; }
     .hm-cell { aspect-ratio: 1; border-radius: 5px; background: var(--border); opacity: .4; }
-    .hm-cell.on { background: var(--primary); box-shadow: 0 0 8px rgba(99,102,241,.5); opacity: 1; }
+    .hm-cell.on { background: var(--primary); box-shadow: 0 0 8px rgba(232,93,67,.5); opacity: 1; }
 
     /* ACHIEVEMENTS */
     .ach { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; opacity: .35; }
     .ach.done { opacity: 1; }
-    .ach-ico { width: 42px; height: 42px; border-radius: 11px; background: #131525; border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
-    .ach.done .ach-ico { background: #1a1b3a; border-color: var(--primary); }
+    .ach-ico { width: 42px; height: 42px; border-radius: 11px; background: #211E29; border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+    .ach.done .ach-ico { background: #2E2228; border-color: var(--primary); }
 
     /* DOTS ANIMATION */
     @keyframes dp { 0%,80%,100%{opacity:.2;transform:scale(.8)}40%{opacity:1;transform:scale(1)} }
@@ -161,8 +171,8 @@
     .tip-box { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 16px; margin-top: 16px; }
 
     /* SUBSCRIPTION CARD */
-    .sub-card { background: linear-gradient(135deg,#1a1b45,#1a1535); border: 1px solid var(--primary); border-radius: 20px; padding: 24px; text-align: center; margin-bottom: 16px; }
-    .price { font-size: 42px; font-weight: 900; color: var(--primary); }
+    .sub-card { background: linear-gradient(135deg,#33231E,#2A1D1A); border: 1px solid var(--primary); border-radius: 20px; padding: 24px; text-align: center; margin-bottom: 16px; }
+    .price { font-size: 42px; font-weight: 900; background: var(--grad); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
     .price-sub { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
     .feature-list { text-align: left; margin-bottom: 20px; }
     .feature-item { color: var(--text); font-size: 14px; padding: 6px 0; }
@@ -170,7 +180,7 @@
 </head>
 <body>
 <div id="app">
-  <div style="display:flex;align-items:center;justify-content:center;height:100vh;color:#6366F1;font-size:36px;">🎤</div>
+  <div style="display:flex;align-items:center;justify-content:center;height:100vh;color:#E85D43;font-size:36px;">🎤</div>
 </div>
 
 <script>
@@ -197,11 +207,11 @@ const userName = user?.first_name || 'друг';
 // DATA
 // ═══════════════════════════════════════════
 const CATS = [
-  { id:'breathing', name:'Дыхание',     icon:'🌊', color:'#6366F1', bg:'#1a1b3a', desc:'Основа голоса'     },
-  { id:'diction',   name:'Дикция',       icon:'🎯', color:'#EC4899', bg:'#2a1030', desc:'Чёткость речи'     },
-  { id:'resonance', name:'Резонанс',     icon:'🎵', color:'#F59E0B', bg:'#241800', desc:'Сила звука'         },
-  { id:'pace',      name:'Темп',          icon:'⏱️', color:'#10B981', bg:'#0c1f17', desc:'Ритм и паузы'      },
-  { id:'confidence',name:'Уверенность',  icon:'⚡', color:'#8B5CF6', bg:'#1a0f30', desc:'Внутренняя сила'   },
+  { id:'breathing', name:'Дыхание',     icon:'🌊', color:'#E85D43', bg:'#2E2228', desc:'Основа голоса'     },
+  { id:'diction',   name:'Дикция',       icon:'🎯', color:'#FF7A5C', bg:'#2E2228', desc:'Чёткость речи'     },
+  { id:'resonance', name:'Резонанс',     icon:'🎵', color:'#FF9F45', bg:'#2E2228', desc:'Сила звука'         },
+  { id:'pace',      name:'Темп',          icon:'⏱️', color:'#4ADE80', bg:'#1E261F', desc:'Ритм и паузы'      },
+  { id:'confidence',name:'Уверенность',  icon:'⚡', color:'#FFB199', bg:'#2E2228', desc:'Внутренняя сила'   },
 ];
 
 const EX = {
@@ -244,10 +254,10 @@ const TIPS = [
 
 function buildPhases(pattern) {
   const p = [];
-  if (pattern.inhale) p.push({ name:'Вдох',    dur:pattern.inhale, color:'#6366F1', scale:1.35 });
-  if (pattern.hold)   p.push({ name:'Задержка', dur:pattern.hold,   color:'#8B5CF6', scale:1.35 });
-  if (pattern.exhale) p.push({ name:'Выдох',   dur:pattern.exhale, color:'#10B981', scale:0.65 });
-  if (pattern.pause)  p.push({ name:'Пауза',    dur:pattern.pause,  color:'#374161', scale:0.65 });
+  if (pattern.inhale) p.push({ name:'Вдох',    dur:pattern.inhale, color:'#E85D43', scale:1.35 });
+  if (pattern.hold)   p.push({ name:'Задержка', dur:pattern.hold,   color:'#FFB199', scale:1.35 });
+  if (pattern.exhale) p.push({ name:'Выдох',   dur:pattern.exhale, color:'#4ADE80', scale:0.65 });
+  if (pattern.pause)  p.push({ name:'Пауза',    dur:pattern.pause,  color:'#6E6676', scale:0.65 });
   return p;
 }
 
@@ -431,21 +441,21 @@ function renderHome() {
     <div class="hero">
       <canvas id="wave"></canvas>
       <div style="margin-top:14px">
-        <p class="lbl">Голос на миллион</p>
+        <p class="lbl" style="background:var(--grad);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;font-size:13px;letter-spacing:.18em">REZON</p>
         <h1 style="font-size:24px;font-weight:800;margin:6px 0 0">${greet()}, ${userName}! 👋</h1>
       </div>
     </div>
 
     <div style="padding:16px 20px 0">
       <div class="stats-row">
-        <div class="stat"><div style="font-size:18px">🔥</div><div class="stat-v" style="color:#F59E0B">${s.streak}</div><div class="stat-l">дней подряд</div></div>
-        <div class="stat"><div style="font-size:18px">⏱️</div><div class="stat-v" style="color:#6366F1">${s.mins}</div><div class="stat-l">минут итого</div></div>
-        <div class="stat"><div style="font-size:18px">✅</div><div class="stat-v" style="color:#10B981">${s.today}</div><div class="stat-l">сегодня</div></div>
+        <div class="stat"><div style="font-size:18px">🔥</div><div class="stat-v" style="color:#FF9F45">${s.streak}</div><div class="stat-l">дней подряд</div></div>
+        <div class="stat"><div style="font-size:18px">⏱️</div><div class="stat-v" style="color:#E85D43">${s.mins}</div><div class="stat-l">минут итого</div></div>
+        <div class="stat"><div style="font-size:18px">✅</div><div class="stat-v" style="color:#4ADE80">${s.today}</div><div class="stat-l">сегодня</div></div>
       </div>
 
       <div class="tip-box">
         <p class="lbl">💡 Совет дня</p>
-        <p style="color:#C4CAE0;font-size:14px;line-height:1.65">${tip}</p>
+        <p style="color:#D8D2DE;font-size:14px;line-height:1.65">${tip}</p>
       </div>
 
       <div style="margin-top:20px">
@@ -475,7 +485,7 @@ function renderExercises() {
         <span style="font-size:28px">${cat.icon}</span>
         <div>
           <h1 style="font-size:22px;font-weight:800;margin:0">${cat.name}</h1>
-          <p style="color:#6B7499;font-size:13px;margin:2px 0 0">${cat.desc}</p>
+          <p style="color:#9A93A0;font-size:13px;margin:2px 0 0">${cat.desc}</p>
         </div>
       </div>
       <div>${exs.map(ex=>exCard(ex, cat)).join('')}</div>
@@ -534,7 +544,7 @@ function renderBreathing(ex) {
   <div class="ex-screen">
     <div class="ex-hdr">
       <button class="close" id="ex-close">✕</button>
-      <span style="color:#6B7499;font-size:13px" id="breath-round">Раунд ${S.bRound} из ${ex.rounds}</span>
+      <span style="color:#9A93A0;font-size:13px" id="breath-round">Раунд ${S.bRound} из ${ex.rounds}</span>
       <div style="width:32px"></div>
     </div>
     <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
@@ -568,11 +578,11 @@ function renderTextEx(ex) {
   const timerDone = isGuided && S.tStarted && timeLeft <= 0;
 
   const dots = total > 1 ? `<div style="display:flex;gap:6px">
-    ${Array.from({length:total},(_,i)=>`<div style="width:8px;height:8px;border-radius:50%;background:${i<S.tRound?'#6366F1':'#1A1D3D'}"></div>`).join('')}
+    ${Array.from({length:total},(_,i)=>`<div style="width:8px;height:8px;border-radius:50%;background:${i<S.tRound?'#E85D43':'#38343F'}"></div>`).join('')}
   </div>` : '<div style="width:46px"></div>';
 
   const timer = isGuided && S.tStarted ? `
-  <div style="width:46px;height:46px;border-radius:50%;border:2px solid ${timeLeft<10?'#EF4444':'#6366F1'};display:flex;align-items:center;justify-content:center;color:${timeLeft<10?'#EF4444':'#6366F1'};font-size:17px;font-weight:800">${timeLeft}</div>
+  <div style="width:46px;height:46px;border-radius:50%;border:2px solid ${timeLeft<10?'#EF4444':'#E85D43'};display:flex;align-items:center;justify-content:center;color:${timeLeft<10?'#EF4444':'#E85D43'};font-size:17px;font-weight:800">${timeLeft}</div>
   ` : '<div style="width:46px"></div>';
 
   return `
@@ -587,7 +597,7 @@ function renderTextEx(ex) {
 
       ${ex.inst ? `<div class="card" style="margin-bottom:14px">
         <p class="lbl">Как делать</p>
-        <p style="color:#C4CAE0;font-size:14px;line-height:1.65">${ex.inst}</p>
+        <p style="color:#D8D2DE;font-size:14px;line-height:1.65">${ex.inst}</p>
       </div>` : ''}
 
       ${ex.text ? `<div class="text-block">
@@ -596,8 +606,8 @@ function renderTextEx(ex) {
       </div>` : ''}
 
       ${S.tTranscript ? `<div class="transcript">
-        <p style="color:#374161;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Распознано</p>
-        <p style="color:#E2E8F0;font-size:13px;line-height:1.55">${S.tTranscript}</p>
+        <p style="color:#6E6676;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px">Распознано</p>
+        <p style="color:#FFFFFF;font-size:13px;line-height:1.55">${S.tTranscript}</p>
       </div>` : ''}
 
       <div class="mt">
@@ -623,9 +633,9 @@ function renderDoneScreen(ex) {
   <div class="done-screen">
     <div style="font-size:72px;margin-bottom:16px">🎉</div>
     <h2 style="font-size:24px;font-weight:800;margin-bottom:8px">Отлично!</h2>
-    <p style="color:#6B7499;font-size:15px;margin-bottom:36px">Упражнение завершено.<br>Голос становится сильнее!</p>
+    <p style="color:#9A93A0;font-size:15px;margin-bottom:36px">Упражнение завершено.<br>Голос становится сильнее!</p>
     <button class="btn btn-g" id="done-complete">Сохранить прогресс ✓</button>
-    <button class="btn" style="background:none;color:#6B7499;margin-top:10px" id="done-close">На главную</button>
+    <button class="btn" style="background:none;color:#9A93A0;margin-top:10px" id="done-close">На главную</button>
   </div>`;
 }
 
@@ -652,17 +662,17 @@ function renderProgress() {
   return `
   <div class="screen" style="padding:52px 20px 84px">
     <h1 class="page-title">Прогресс</h1>
-    <p class="page-sub">Твой путь к голосу на миллион</p>
+    <p class="page-sub">Твой путь к сильному голосу</p>
 
     <div class="stats-row" style="margin-bottom:16px">
       <div class="stat">
-        <div style="font-size:26px;font-weight:800;color:#F59E0B">🔥 ${s.streak}</div>
-        <div style="color:#E2E8F0;font-size:13px;font-weight:600;margin-top:4px">Дней подряд</div>
+        <div style="font-size:26px;font-weight:800;color:#FF9F45">🔥 ${s.streak}</div>
+        <div style="color:#FFFFFF;font-size:13px;font-weight:600;margin-top:4px">Дней подряд</div>
         <div class="stat-l">текущая серия</div>
       </div>
       <div class="stat">
-        <div style="font-size:26px;font-weight:800;color:#6366F1">⏱️ ${s.mins}</div>
-        <div style="color:#E2E8F0;font-size:13px;font-weight:600;margin-top:4px">Минут практики</div>
+        <div style="font-size:26px;font-weight:800;color:#E85D43">⏱️ ${s.mins}</div>
+        <div style="color:#FFFFFF;font-size:13px;font-weight:600;margin-top:4px">Минут практики</div>
         <div class="stat-l">всего</div>
       </div>
     </div>
@@ -671,8 +681,8 @@ function renderProgress() {
       <p class="lbl" style="margin-bottom:14px">Активность за 4 недели</p>
       <div class="heatmap">${days.map(d=>`<div class="hm-cell ${active.has(d)?'on':''}"></div>`).join('')}</div>
       <div style="display:flex;justify-content:space-between;margin-top:8px">
-        <span style="color:#374161;font-size:10px">4 нед. назад</span>
-        <span style="color:#374161;font-size:10px">Сегодня</span>
+        <span style="color:#6E6676;font-size:10px">4 нед. назад</span>
+        <span style="color:#6E6676;font-size:10px">Сегодня</span>
       </div>
     </div>
 
@@ -682,10 +692,10 @@ function renderProgress() {
       <div class="ach ${a.done?'done':''}">
         <div class="ach-ico">${a.icon}</div>
         <div>
-          <div style="color:${a.done?'#E2E8F0':'#6B7499'};font-size:14px;font-weight:600">${a.name}</div>
-          <div style="color:#374161;font-size:11px;margin-top:2px">${a.desc}</div>
+          <div style="color:${a.done?'#FFFFFF':'#9A93A0'};font-size:14px;font-weight:600">${a.name}</div>
+          <div style="color:#6E6676;font-size:11px;margin-top:2px">${a.desc}</div>
         </div>
-        ${a.done?'<span style="color:#10B981;font-size:18px;margin-left:auto">✓</span>':''}
+        ${a.done?'<span style="color:#4ADE80;font-size:18px;margin-left:auto">✓</span>':''}
       </div>`).join('')}
     </div>
 
@@ -702,9 +712,9 @@ function renderCoach() {
   const quick = ['Тихий голос','Говорю слишком быстро','Боюсь выступать','Плохая дикция'];
   return `
   <div class="coach-screen">
-    <div style="padding:52px 20px 14px;border-bottom:1px solid #1A1D3D;flex-shrink:0">
+    <div style="padding:52px 20px 14px;border-bottom:1px solid #38343F;flex-shrink:0">
       <h1 style="font-size:22px;font-weight:800">AI-Коуч</h1>
-      <p style="color:#6B7499;font-size:13px;margin-top:3px">Задай любой вопрос о голосе и речи</p>
+      <p style="color:#9A93A0;font-size:13px;margin-top:3px">Задай любой вопрос о голосе и речи</p>
     </div>
     <div class="chat-msgs" id="chat-msgs">
       ${S.coachMsgs.map(m=>msgHtml(m)).join('')}
@@ -779,9 +789,9 @@ function startWave() {
   c.width = c.offsetWidth; c.height = 52;
   let t = 0;
   const waves = [
-    { a:13, f:0.035, s:1.8, col:'rgba(99,102,241,0.65)' },
-    { a:8,  f:0.055, s:2.4, col:'rgba(139,92,246,0.45)' },
-    { a:5,  f:0.075, s:1.4, col:'rgba(245,158,11,0.35)' },
+    { a:13, f:0.035, s:1.8, col:'rgba(232,93,67,0.65)' },
+    { a:8,  f:0.055, s:2.4, col:'rgba(255,177,153,0.45)' },
+    { a:5,  f:0.075, s:1.4, col:'rgba(255,159,69,0.35)' },
   ];
   cancelAnimationFrame(waveFrame);
   (function draw() {
@@ -883,12 +893,12 @@ function startGuidedTimer() {
     if (el && S.exercise.type === 'guided') {
       const totalRounds = S.exercise.rounds||1;
       const dots = totalRounds>1
-        ? `<div style="display:flex;gap:6px">${Array.from({length:totalRounds},(_,i)=>`<div style="width:8px;height:8px;border-radius:50%;background:${i<S.tRound?'#6366F1':'#1A1D3D'}"></div>`).join('')}</div>`
+        ? `<div style="display:flex;gap:6px">${Array.from({length:totalRounds},(_,i)=>`<div style="width:8px;height:8px;border-radius:50%;background:${i<S.tRound?'#E85D43':'#38343F'}"></div>`).join('')}</div>`
         : '<div style="width:46px"></div>';
       el.innerHTML = `
         <button class="close" id="ex-close">✕</button>
         ${dots}
-        <div style="width:46px;height:46px;border-radius:50%;border:2px solid ${S.tTimeLeft<10?'#EF4444':'#6366F1'};display:flex;align-items:center;justify-content:center;color:${S.tTimeLeft<10?'#EF4444':'#6366F1'};font-size:17px;font-weight:800">${S.tTimeLeft}</div>`;
+        <div style="width:46px;height:46px;border-radius:50%;border:2px solid ${S.tTimeLeft<10?'#EF4444':'#E85D43'};display:flex;align-items:center;justify-content:center;color:${S.tTimeLeft<10?'#EF4444':'#E85D43'};font-size:17px;font-weight:800">${S.tTimeLeft}</div>`;
       document.getElementById('ex-close')?.addEventListener('click', closeEx);
     }
     if (S.tTimeLeft<=0) {
@@ -987,7 +997,7 @@ function showSubModal() {
   const modal = document.createElement('div');
   modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.8);z-index:500;display:flex;align-items:flex-end;max-width:430px;margin:0 auto;';
   modal.innerHTML = `
-    <div style="background:#11132A;border-radius:24px 24px 0 0;padding:24px 20px 40px;width:100%;border:1px solid #1A1D3D">
+    <div style="background:#28252F;border-radius:24px 24px 0 0;padding:24px 20px 40px;width:100%;border:1px solid #38343F">
       <div class="sub-card">
         <div class="price">$7</div>
         <div class="price-sub">в месяц · отмена в любой момент</div>
@@ -996,7 +1006,7 @@ function showSubModal() {
         </div>
       </div>
       <button class="btn btn-p" id="sub-confirm">Оформить подписку</button>
-      <button class="btn" style="background:none;color:#6B7499;margin-top:10px" id="sub-close">Не сейчас</button>
+      <button class="btn" style="background:none;color:#9A93A0;margin-top:10px" id="sub-close">Не сейчас</button>
     </div>`;
   document.body.appendChild(modal);
   document.getElementById('sub-close')?.addEventListener('click', ()=>modal.remove());
