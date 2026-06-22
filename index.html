@@ -285,7 +285,7 @@ const TIPS = [
 // DAILY PLAN / ENERGY / XP (Stage 2)
 // На этапе 3 этот статичный план заменит персональная очередь от AI.
 // ═══════════════════════════════════════════
-const PLAN = ['b1','d3','r1','p1','c1','d1','r2','b2','c2','d2'];
+const PLAN = ['b1','d3','r1','rp:self','p1','c1','d1','rp:interview','r2','b2','c2','d2'];
 const MAX_ENERGY = 3;     // упражнений в день на бесплатном тарифе
 const XP_PER_STEP = 20;
 const CALIB_PHRASE = 'Привет! Я готов работать над своим голосом и говорить уверенно.';
@@ -587,16 +587,41 @@ function renderNav() {
 // ═══════════════════════════════════════════
 // HOME SCREEN
 // ═══════════════════════════════════════════
+// Очередь плана может содержать упражнения ('b1') и роль-плеи ('rp:interview')
+function isRpToken(t) { return typeof t === 'string' && t.indexOf('rp:') === 0; }
+function rpFromToken(t) { return ROLEPLAYS.find(s => s.id === t.slice(3)); }
 function planQueue() {
   const q = S.profile && Array.isArray(S.profile.queue) && S.profile.queue.length ? S.profile.queue : PLAN;
-  return q.filter(id => ALL_EX.some(e => e.id === id));
+  const valid = q.filter(t => isRpToken(t) ? !!rpFromToken(t) : ALL_EX.some(e => e.id === t));
+  return valid.length ? valid : PLAN;
 }
+// Вплетает роль-плеи в очередь упражнений: после каждых 3 техник — 1 сценарий (методология «техника → применение»)
+function weaveRoleplays(exIds, answers) {
+  const sit = answers && answers.situation;
+  const pri = sit === 'переговоры' ? ['negotiation','raise','self']
+    : sit === 'публичные выступления' ? ['self','qa','interview']
+    : sit === 'видео и подкасты' ? ['self','qa','interview']
+    : ['self','interview','qa'];
+  const rpOrder = [...new Set([...pri, ...ROLEPLAYS.map(s => s.id)])];
+  const out = []; let ri = 0;
+  exIds.forEach((id, i) => {
+    out.push(id);
+    if ((i + 1) % 3 === 0 && ri < rpOrder.length) out.push('rp:' + rpOrder[ri++]);
+  });
+  if (!out.some(isRpToken) && rpOrder.length) out.splice(Math.min(2, out.length), 0, 'rp:' + rpOrder[0]);
+  return out;
+}
+// Нормализованный шаг плана (упражнение или роль-плей)
 function planStep(offset=0) {
   const q = planQueue();
-  const idx = ((S.stats.planIdx||0) + offset) % q.length;
-  const ex = ALL_EX.find(e => e.id === q[idx]) || ALL_EX[0];
+  const tok = q[((S.stats.planIdx||0) + offset) % q.length];
+  if (isRpToken(tok)) {
+    const sc = rpFromToken(tok) || ROLEPLAYS[0];
+    return { kind:'rp', id:sc.id, sc, icon:sc.icon, catName:'Сценарий общения', catBg:'var(--card)', title:sc.title, desc:sc.situation, mins:5, can:canDoRoleplay(sc.id) };
+  }
+  const ex = ALL_EX.find(e => e.id === tok) || ALL_EX[0];
   const cat = CATS.find(c => c.id === EX_CAT[ex.id]) || {};
-  return { ex, cat };
+  return { kind:'ex', id:ex.id, ex, icon:cat.icon, catName:cat.name, catBg:cat.bg, title:ex.title, desc:ex.desc, mins:ex.mins, can:canDo(ex.id) };
 }
 
 // ── доступ / триал / уровни (Stage 4–5) ──
@@ -635,7 +660,7 @@ function weekDots() {
 function renderToday() {
   const s = S.stats;
   const energy = energyLeft();
-  const { ex:aex, cat:acat } = planStep(0);
+  const a = planStep(0);
   const dots = weekDots();
   const tip = TIPS[new Date().getDay() % TIPS.length];
 
@@ -680,16 +705,16 @@ function renderToday() {
 
       <p class="lbl">Твой шаг сейчас</p>
       ${!energyBlocked() ? `
-      <div class="step-card" data-step="${aex.id}">
+      <div class="step-card" ${a.kind==='rp' ? `data-rp-step="${a.id}"` : `data-step="${a.id}"`}>
         <div style="display:flex;align-items:center;gap:14px">
-          <div class="step-ico">${acat.icon}</div>
+          <div class="step-ico">${a.icon}</div>
           <div style="flex:1;min-width:0">
-            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;opacity:.85">${acat.name}${canDo(aex.id) ? '' : ' · 🔒'}</div>
-            <div style="font-size:18px;font-weight:800;margin-top:2px">${aex.title}</div>
-            <div style="font-size:13px;opacity:.88;margin-top:2px">${aex.desc}</div>
+            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;opacity:.85">${a.catName}${a.can ? '' : ' · 🔒'}</div>
+            <div style="font-size:18px;font-weight:800;margin-top:2px">${a.title}</div>
+            <div style="font-size:13px;opacity:.88;margin-top:2px">${a.desc}</div>
           </div>
         </div>
-        <button class="btn" style="background:#fff;color:#C9492F;margin-top:16px">${canDo(aex.id) ? `Начать · ${aex.mins} мин →` : 'Открыть в подписке →'}</button>
+        <button class="btn" style="background:#fff;color:#C9492F;margin-top:16px">${a.can ? (a.kind==='rp' ? '🎭 Начать диалог →' : `Начать · ${a.mins} мин →`) : 'Открыть в подписке →'}</button>
       </div>` : `
       <div class="card" style="text-align:center;padding:28px 20px">
         <div style="font-size:40px;margin-bottom:8px">⚡</div>
@@ -700,11 +725,11 @@ function renderToday() {
 
       <p class="lbl" style="margin-top:22px">Далее в плане</p>
       <div class="gap-10">
-        ${[1,2].map(o=>{ const {ex,cat}=planStep(o); return `
+        ${[1,2].map(o=>{ const s2=planStep(o); return `
         <div class="ex-card" style="opacity:.5">
-          <div class="ex-ico" style="background:${cat.bg}">${cat.icon}</div>
-          <div class="ex-info"><div class="ex-title">${ex.title}</div><div class="ex-desc">${cat.name}</div></div>
-          <div class="ex-meta"><div style="font-size:16px">🔒</div></div>
+          <div class="ex-ico" style="background:${s2.catBg||'var(--card)'}">${s2.icon}</div>
+          <div class="ex-info"><div class="ex-title">${s2.title}</div><div class="ex-desc">${s2.catName}</div></div>
+          <div class="ex-meta"><div style="font-size:16px">${s2.kind==='rp'?'🎭':'🔒'}</div></div>
         </div>`; }).join('')}
       </div>
 
@@ -1272,7 +1297,8 @@ function fallbackPlan(a) {
 
 function finishOnboarding() {
   const p = S.onb.plan;
-  S.profile = { onboarded:true, answers:S.onb.answers, focuses:p.focuses, queue:p.queue, timeframe:p.timeframe, trialStart:Date.now() };
+  const wovenQueue = weaveRoleplays(p.queue, S.onb.answers);   // вплетаем роль-плеи в путь
+  S.profile = { onboarded:true, answers:S.onb.answers, focuses:p.focuses, queue:wovenQueue, timeframe:p.timeframe, trialStart:Date.now() };
   store.set('rezon_profile', JSON.stringify(S.profile));
   S.stats.planIdx = 0; saveStats();
   S.onb = null; S.tab = 'home'; tg.BackButton.hide();
@@ -1630,11 +1656,18 @@ function bindGlobal() {
       if (ex) { tg.HapticFeedback.selectionChanged(); openStep(ex); }
     });
   });
-  // Roleplay scenario cards
+  // Roleplay scenario cards (catalog)
   document.querySelectorAll('[data-rp]').forEach(el=>{
     el.addEventListener('click', ()=>{
       const sc = ROLEPLAYS.find(s=>s.id===el.dataset.rp);
       if (sc) { tg.HapticFeedback.selectionChanged(); openRoleplay(sc); }
+    });
+  });
+  // Roleplay as a daily-plan step
+  document.querySelectorAll('[data-rp-step]').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const sc = ROLEPLAYS.find(s=>s.id===el.dataset.rpStep);
+      if (sc) { tg.HapticFeedback.selectionChanged(); openRoleplay(sc, true); }
     });
   });
   // Back from category
@@ -1771,28 +1804,31 @@ function renderRpFeedback() {
     <p style="text-align:center;color:var(--muted);font-size:13px;margin-bottom:16px">${rp.sc.title} · +${XP_PER_STEP} XP</p>
     <div class="card" style="margin-bottom:16px"><p style="font-size:14px;line-height:1.65;white-space:pre-wrap">${rp.feedback}</p></div>
     <div class="mt">
-      <button class="btn btn-p" id="rp-again">Пройти ещё раз</button>
-      <button class="btn" style="background:none;color:var(--muted);margin-top:8px" id="rp-done">Готово</button>
+      ${rp.fromPlan
+        ? `<button class="btn btn-p" id="rp-done">Дальше →</button>`
+        : `<button class="btn btn-p" id="rp-again">Пройти ещё раз</button>
+      <button class="btn" style="background:none;color:var(--muted);margin-top:8px" id="rp-done">Готово</button>`}
     </div>
   </div></div>`;
 }
 
 function scrollRoleplay() { const el=document.getElementById('chat-msgs'); if(el) setTimeout(()=>{ el.scrollTop=el.scrollHeight; },30); }
 
-function openRoleplay(sc) {
+function openRoleplay(sc, fromPlan=false) {
   if (!canDoRoleplay(sc.id)) { showSubModal('exercise'); return; }
   if (energyBlocked()) { showSubModal('energy'); return; }
   clearTimers();
-  S.roleplay = { sc, msgs:[{ role:'assistant', text:sc.opener }], phase:'intro', loading:false, feedback:null };
+  S.roleplay = { sc, msgs:[{ role:'assistant', text:sc.opener }], phase:'intro', loading:false, feedback:null, fromPlan };
   tg.BackButton.show();
   render();
 }
 
 function exitRoleplay() {
+  const fromPlan = S.roleplay && S.roleplay.fromPlan;
   if (S.rpRecording) { try { rpRecog && rpRecog.stop(); } catch(e){} S.rpRecording = false; }
   S.roleplay = null;
-  S.catId = 'roleplay';   // вернуться к списку сценариев
-  tg.BackButton.show();
+  if (fromPlan) { S.catId = null; S.tab = 'home'; tg.BackButton.hide(); }   // назад на «Сегодня»
+  else { S.catId = 'roleplay'; tg.BackButton.show(); }                       // назад к списку сценариев
   render();
 }
 
@@ -1832,7 +1868,8 @@ async function finishRoleplay() {
   } catch(e) {
     rp.feedback = '⚠️ Не удалось получить разбор — проверь соединение и попробуй ещё раз.';
   }
-  completeExercise({ id:'rp_'+rp.sc.id, mins:3 });   // XP + стрик + история
+  completeExercise({ id:'rp:'+rp.sc.id, mins:3 });   // XP + стрик + история
+  if (rp.fromPlan) { S.stats.planIdx = ((S.stats.planIdx||0) + 1) % planQueue().length; saveStats(); }
   rp.phase = 'feedback'; render();
 }
 
