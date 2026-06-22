@@ -176,6 +176,25 @@
     .price-sub { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
     .feature-list { text-align: left; margin-bottom: 20px; }
     .feature-item { color: var(--text); font-size: 14px; padding: 6px 0; }
+
+    /* ─── TODAY / DAILY CYCLE (Stage 2) ─── */
+    .avatar-ring { width: 58px; height: 58px; border-radius: 50%; padding: 2px; background: var(--grad); flex-shrink: 0; }
+    .avatar-face { width: 100%; height: 100%; border-radius: 50%; background: var(--card); display: flex; align-items: center; justify-content: center; font-size: 26px; }
+    .wk-dot { width: 26px; height: 26px; border-radius: 50%; background: var(--border); margin: 0 auto; }
+    .wk-dot.on { background: var(--grad); }
+    .wk-dot.today { box-shadow: 0 0 0 2px var(--bg), 0 0 0 3px var(--primary); }
+    .step-card { background: var(--grad); border-radius: 20px; padding: 18px; color: #fff; cursor: pointer; box-shadow: 0 10px 26px rgba(232,93,67,.30); }
+    .step-card:active { opacity: .92; }
+    .step-ico { width: 50px; height: 50px; border-radius: 14px; background: rgba(255,255,255,.20); display: flex; align-items: center; justify-content: center; font-size: 26px; flex-shrink: 0; }
+    .video-ph { position: relative; width: 100%; aspect-ratio: 16/10; border-radius: 18px; background: linear-gradient(135deg,#2A2730,#211E29); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; overflow: hidden; }
+    .video-ph-inner { text-align: center; color: var(--primary); }
+    .video-ph-tag { position: absolute; bottom: 10px; left: 12px; background: rgba(0,0,0,.45); padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; color: #fff; }
+    .rec-badge { width: 40px; height: 40px; border-radius: 50%; background: var(--grad); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 18px; }
+    .rec-btn { width: 88px; height: 88px; border-radius: 50%; border: none; background: var(--grad); color: #fff; font-size: 32px; cursor: pointer; box-shadow: 0 8px 24px rgba(232,93,67,.35); position: relative; }
+    .rec-btn.rec-on { background: #EF4444; }
+    .rec-btn.rec-done { width: 64px; height: 64px; font-size: 24px; background: var(--card); border: 2px solid var(--primary); color: var(--primary); box-shadow: none; }
+    .rec-pulse { position: absolute; inset: -7px; border-radius: 50%; border: 2px solid #EF4444; animation: pulse 1.2s ease-out infinite; }
+    @keyframes pulse { 0% { transform: scale(1); opacity: .7; } 100% { transform: scale(1.35); opacity: 0; } }
   </style>
 </head>
 <body>
@@ -252,6 +271,28 @@ const TIPS = [
   'Понизьте голос в конце фразы — это звучит уверенно, не вопрошающе.',
 ];
 
+// ═══════════════════════════════════════════
+// DAILY PLAN / ENERGY / XP (Stage 2)
+// На этапе 3 этот статичный план заменит персональная очередь от AI.
+// ═══════════════════════════════════════════
+const PLAN = ['b1','d3','r1','p1','c1','d1','r2','b2','c2','d2'];
+const MAX_ENERGY = 3;     // упражнений в день на бесплатном тарифе
+const XP_PER_STEP = 20;
+const CALIB_PHRASE = 'Привет! Я готов работать над своим голосом и говорить уверенно.';
+
+// сопоставление упражнение → категория
+const EX_CAT = {};
+for (const c of CATS) (EX[c.id]||[]).forEach(e => { EX_CAT[e.id] = c.id; });
+
+// ожидаемый результат и срок по категории (для экрана «Объяснение»)
+const RESULT_BY_CAT = {
+  breathing:  { goal:'Опора на дыхание и стабильный, мощный звук', term:'Первые ощущения — уже на 1–2 неделе' },
+  diction:    { goal:'Чёткая речь, которую легко слушать',          term:'Заметная чёткость — за 2–3 недели' },
+  resonance:  { goal:'Глубокий, объёмный тембр голоса',             term:'Резонанс раскрывается за 3–4 недели' },
+  pace:       { goal:'Уверенный темп и сильные паузы',              term:'Контроль темпа — за 2–3 недели' },
+  confidence: { goal:'Спокойствие и уверенность в голосе',          term:'Меньше зажатости — с первых занятий' },
+};
+
 function buildPhases(pattern) {
   const p = [];
   if (pattern.inhale) p.push({ name:'Вдох',    dur:pattern.inhale, color:'#E85D43', scale:1.35 });
@@ -268,14 +309,16 @@ const store = {
   get(key) {
     return new Promise(resolve => {
       const local = localStorage.getItem(key);
-      if (tg.CloudStorage?.getItem) {
-        tg.CloudStorage.getItem(key, (e, v) => resolve((e || !v) ? local : v));
-      } else resolve(local);
+      try {
+        if (tg.CloudStorage?.getItem) {
+          tg.CloudStorage.getItem(key, (e, v) => resolve((e || !v) ? local : v));
+        } else resolve(local);
+      } catch (e) { resolve(local); }
     });
   },
   set(key, val) {
-    localStorage.setItem(key, val);
-    if (tg.CloudStorage?.setItem) tg.CloudStorage.setItem(key, val, () => {});
+    try { localStorage.setItem(key, val); } catch (e) {}
+    try { if (tg.CloudStorage?.setItem) tg.CloudStorage.setItem(key, val, () => {}); } catch (e) {}
   }
 };
 
@@ -294,7 +337,11 @@ let S = {
   coachMsgs: [{ role:'assistant', text:'Привет! Я твой AI-коуч по голосу и речи 🎤\n\nМогу помочь с:\n• Выбором упражнений под цель\n• Проблемами с голосом и дикцией\n• Советами для публичных выступлений\n\nО чём поговорим?' }],
   coachLoading: false,
   // stats
-  stats: { streak:0, mins:0, today:0, lastDate:null, history:[] },
+  stats: { streak:0, mins:0, today:0, lastDate:null, history:[], planIdx:0, xp:0 },
+  // daily cycle (Stage 2): flowStage = null | 'explain' | 'before' | 'exercise' | 'after' | 'finish'
+  flowStage: null,
+  // voice recording (до/после)
+  vRecording: false, vTimer: null, vTimeLeft: 0, vHasRec: false, vUrl: null,
   // sub
   showSub: false,
 };
@@ -328,17 +375,18 @@ function saveStats() {
 function completeExercise(ex) {
   const t = today();
   const s = S.stats;
-  const newStreak = s.lastDate===t ? s.streak : (s.lastDate===yesterday() ? s.streak+1 : 1);
+  const newStreak = s.lastDate===t ? s.streak : (s.lastDate===yesterday() ? (s.streak||0)+1 : 1);
   S.stats = {
+    ...s,
     streak: newStreak,
-    mins: s.mins + (ex.mins||1),
-    today: s.lastDate===t ? s.today+1 : 1,
+    mins: (s.mins||0) + (ex.mins||1),
+    today: s.lastDate===t ? (s.today||0)+1 : 1,
+    xp: (s.xp||0) + XP_PER_STEP,
     lastDate: t,
     history: [...(s.history||[]).slice(-60), { date:t, id:ex.id }],
   };
   saveStats();
   tg.HapticFeedback.notificationOccurred('success');
-  showDone(ex);
 }
 
 // ═══════════════════════════════════════════
@@ -348,6 +396,7 @@ function clearTimers() {
   clearInterval(S.bTimer); S.bTimer = null;
   clearInterval(S.tTimer); S.tTimer = null;
   if (S.tRecording) stopRec();
+  if (S.vRecording) stopVoiceRec();
 }
 
 function goTab(tab) {
@@ -364,9 +413,7 @@ function openCat(id) {
   render();
 }
 
-function openEx(ex) {
-  clearTimers();
-  S.exercise = ex;
+function resetMechanic(ex) {
   S.bPhases = buildPhases(ex.pattern||{});
   S.bPhaseIdx = 0;
   S.bRound = 1;
@@ -374,13 +421,31 @@ function openEx(ex) {
   S.bRunning = false; S.bDone = false;
   S.tStarted = false; S.tRound = 1; S.tTranscript = '';
   S.tTimeLeft = ex.dur || 60; S.tDone = false;
+}
+
+// свободный режим — из таба «Упражнения» (без записи до/после)
+function openEx(ex) {
+  clearTimers();
+  S.exercise = ex; S.flowStage = null;
+  resetMechanic(ex);
+  tg.BackButton.show();
+  render();
+}
+
+// режим цикла — из главного экрана «Сегодня» (Объяснение → запись → упражнение → запись → финиш)
+function openStep(ex) {
+  clearTimers();
+  S.exercise = ex; S.flowStage = 'explain';
+  resetMechanic(ex);
+  resetVoice();
   tg.BackButton.show();
   render();
 }
 
 function closeEx() {
   clearTimers();
-  S.exercise = null;
+  resetVoice();
+  S.exercise = null; S.flowStage = null;
   if (S.catId) tg.BackButton.show(); else tg.BackButton.hide();
   render();
 }
@@ -396,15 +461,20 @@ tg.BackButton.onClick(() => {
 // ═══════════════════════════════════════════
 function render() {
   const app = document.getElementById('app');
-  if (S.exercise) { app.innerHTML = renderExercise(); bindEx(); return; }
+  if (S.exercise) {
+    if (S.flowStage === 'explain') { app.innerHTML = renderExplain(); bindFlow(); return; }
+    if (S.flowStage === 'before' || S.flowStage === 'after') { app.innerHTML = renderRecord(S.flowStage); bindRecord(); return; }
+    if (S.flowStage === 'finish') { app.innerHTML = renderFinish(); bindFinish(); return; }
+    app.innerHTML = renderExercise(); bindEx(); return;
+  }
 
   const screens = {
-    home: renderHome,
+    home: renderToday,
     exercises: renderExercises,
     coach: renderCoach,
     progress: renderProgress,
   };
-  app.innerHTML = (screens[S.tab] || renderHome)() + renderNav();
+  app.innerHTML = (screens[S.tab] || renderToday)() + renderNav();
   bindGlobal();
 
   if (S.tab === 'home') startWave();
@@ -413,7 +483,7 @@ function render() {
 
 function renderNav() {
   const tabs = [
-    { id:'home',      icon:'🏠', label:'Главная'    },
+    { id:'home',      icon:'☀️', label:'Сегодня'    },
     { id:'exercises', icon:'🎯', label:'Упражнения' },
     { id:'coach',     icon:'🤖', label:'AI-Коуч'    },
     { id:'progress',  icon:'📈', label:'Прогресс'   },
@@ -428,44 +498,94 @@ function renderNav() {
 // ═══════════════════════════════════════════
 // HOME SCREEN
 // ═══════════════════════════════════════════
-function renderHome() {
+function planStep(offset=0) {
+  const idx = ((S.stats.planIdx||0) + offset) % PLAN.length;
+  const ex = ALL_EX.find(e => e.id === PLAN[idx]);
+  const cat = CATS.find(c => c.id === EX_CAT[ex.id]);
+  return { ex, cat };
+}
+function energyLeft() { return Math.max(0, MAX_ENERGY - (S.stats.today||0)); }
+function weekDots() {
+  const labels = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
+  const done = new Set((S.stats.history||[]).map(h => h.date));
+  const now = new Date();
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - ((now.getDay()+6) % 7));
+  return labels.map((lb, i) => {
+    const d = new Date(monday); d.setDate(monday.getDate() + i);
+    const ds = d.toDateString();
+    return { lb, isDone: done.has(ds), isToday: ds === now.toDateString() };
+  });
+}
+
+function renderToday() {
   const s = S.stats;
+  const energy = energyLeft();
+  const { ex:aex, cat:acat } = planStep(0);
+  const dots = weekDots();
   const tip = TIPS[new Date().getDay() % TIPS.length];
-  const recs = [
-    { ex:EX.breathing[0], cat:CATS[0] },
-    { ex:EX.diction[0],   cat:CATS[1] },
-    { ex:EX.confidence[0],cat:CATS[4] },
-  ];
+
   return `
   <div class="screen">
-    <div class="hero">
+    <div class="hero" style="padding-bottom:10px">
       <canvas id="wave"></canvas>
-      <div style="margin-top:14px">
-        <p class="lbl" style="background:var(--grad);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;font-size:13px;letter-spacing:.18em">REZON</p>
-        <h1 style="font-size:24px;font-weight:800;margin:6px 0 0">${greet()}, ${userName}! 👋</h1>
+      <div style="display:flex;align-items:center;gap:14px;margin-top:12px">
+        <div class="avatar-ring"><div class="avatar-face">🎤</div></div>
+        <div style="min-width:0">
+          <p class="lbl" style="background:var(--grad);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;font-size:12px;letter-spacing:.18em;margin:0">REZON</p>
+          <h1 style="font-size:22px;font-weight:800;margin:3px 0 0">${greet()}, ${userName}!</h1>
+          <p style="color:var(--muted);font-size:13px;margin-top:2px">Алмат подготовил тебе шаг на сегодня 👇</p>
+        </div>
       </div>
     </div>
 
-    <div style="padding:16px 20px 0">
-      <div class="stats-row">
-        <div class="stat"><div style="font-size:18px">🔥</div><div class="stat-v" style="color:#FF9F45">${s.streak}</div><div class="stat-l">дней подряд</div></div>
-        <div class="stat"><div style="font-size:18px">⏱️</div><div class="stat-v" style="color:#E85D43">${s.mins}</div><div class="stat-l">минут итого</div></div>
-        <div class="stat"><div style="font-size:18px">✅</div><div class="stat-v" style="color:#4ADE80">${s.today}</div><div class="stat-l">сегодня</div></div>
+    <div style="padding:14px 20px 0">
+      <div class="card" style="margin-bottom:16px">
+        <div class="row-between" style="margin-bottom:12px">
+          <span class="lbl" style="margin:0">Эта неделя</span>
+          <span style="font-size:13px;font-weight:700;color:var(--gold)">⚡ ${energy}/${MAX_ENERGY} энергии</span>
+        </div>
+        <div style="display:flex;justify-content:space-between">
+          ${dots.map(d=>`<div style="flex:1;text-align:center">
+            <div class="wk-dot ${d.isDone?'on':''} ${d.isToday?'today':''}"></div>
+            <div style="font-size:10px;color:var(--dim);margin-top:6px">${d.lb}</div>
+          </div>`).join('')}
+        </div>
+      </div>
+
+      <p class="lbl">Твой шаг сейчас</p>
+      ${energy > 0 ? `
+      <div class="step-card" data-step="${aex.id}">
+        <div style="display:flex;align-items:center;gap:14px">
+          <div class="step-ico">${acat.icon}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;opacity:.85">${acat.name}</div>
+            <div style="font-size:18px;font-weight:800;margin-top:2px">${aex.title}</div>
+            <div style="font-size:13px;opacity:.88;margin-top:2px">${aex.desc}</div>
+          </div>
+        </div>
+        <button class="btn" style="background:#fff;color:#C9492F;margin-top:16px">Начать · ${aex.mins} мин →</button>
+      </div>` : `
+      <div class="card" style="text-align:center;padding:28px 20px">
+        <div style="font-size:40px;margin-bottom:8px">⚡</div>
+        <div style="font-weight:800;font-size:16px">Энергия на сегодня закончилась</div>
+        <p style="color:var(--muted);font-size:13px;margin:6px 0 16px">Возвращайся завтра — или открой полный доступ без лимитов.</p>
+        <button class="btn btn-p" id="show-sub">Открыть полный доступ</button>
+      </div>`}
+
+      <p class="lbl" style="margin-top:22px">Далее в плане</p>
+      <div class="gap-10">
+        ${[1,2].map(o=>{ const {ex,cat}=planStep(o); return `
+        <div class="ex-card" style="opacity:.5">
+          <div class="ex-ico" style="background:${cat.bg}">${cat.icon}</div>
+          <div class="ex-info"><div class="ex-title">${ex.title}</div><div class="ex-desc">${cat.name}</div></div>
+          <div class="ex-meta"><div style="font-size:16px">🔒</div></div>
+        </div>`; }).join('')}
       </div>
 
       <div class="tip-box">
         <p class="lbl">💡 Совет дня</p>
         <p style="color:#D8D2DE;font-size:14px;line-height:1.65">${tip}</p>
-      </div>
-
-      <div style="margin-top:20px">
-        <div class="row-between">
-          <h2 style="font-size:17px;font-weight:700">Начни здесь</h2>
-          <button class="link" data-tab="exercises">Все →</button>
-        </div>
-        <div class="gap-10">
-          ${recs.map(r=>exCard(r.ex, r.cat)).join('')}
-        </div>
       </div>
     </div>
   </div>`;
@@ -637,6 +757,173 @@ function renderDoneScreen(ex) {
     <button class="btn btn-g" id="done-complete">Сохранить прогресс ✓</button>
     <button class="btn" style="background:none;color:#9A93A0;margin-top:10px" id="done-close">На главную</button>
   </div>`;
+}
+
+// ═══════════════════════════════════════════
+// DAILY CYCLE SCREENS (Stage 2)
+// ═══════════════════════════════════════════
+function renderExplain() {
+  const ex = S.exercise;
+  const cat = CATS.find(c => c.id === EX_CAT[ex.id]) || {};
+  const r = RESULT_BY_CAT[cat.id] || {};
+  return `
+  <div class="ex-screen">
+    <div class="ex-hdr">
+      <button class="close" id="flow-close">✕</button>
+      <span style="color:var(--muted);font-size:13px">${cat.name||''}</span>
+      <div style="width:32px"></div>
+    </div>
+    <div class="ex-body">
+      <div class="video-ph">
+        <div class="video-ph-inner">
+          <div style="font-size:34px">▶</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:6px">Видео-объяснение · скоро</div>
+        </div>
+        <div class="video-ph-tag">🎙 Алмат</div>
+      </div>
+      <h2 style="font-size:22px;font-weight:800;margin:18px 0 4px">${ex.title}</h2>
+      <p style="color:var(--muted);font-size:14px;line-height:1.6;margin-bottom:16px">${ex.inst || ex.desc}</p>
+      <div class="card" style="margin-bottom:10px">
+        <p class="lbl">🎯 Что это даст</p>
+        <p style="font-size:14px;line-height:1.6">${r.goal || 'Сильный и уверенный голос'}</p>
+      </div>
+      <div class="card">
+        <p class="lbl">⏳ Срок результата</p>
+        <p style="font-size:14px;line-height:1.6">${r.term || 'При регулярной практике'}</p>
+      </div>
+      <div class="mt"><button class="btn btn-p" id="flow-start">Поехали →</button></div>
+    </div>
+  </div>`;
+}
+
+function recordButtonHtml() {
+  if (S.vRecording) return `
+    <button class="rec-btn rec-on" id="rec-mic"><span class="rec-pulse"></span>⏹</button>
+    <div style="font-size:14px;color:var(--primary);margin-top:12px;font-weight:700" id="rec-timer">${S.vTimeLeft}с</div>`;
+  if (S.vHasRec) return `
+    <button class="rec-btn rec-done" id="rec-play">▶</button>
+    <div style="margin-top:12px"><span style="color:var(--green);font-weight:700;font-size:14px">✓ Записано</span> · <button class="link" id="rec-redo" style="font-size:13px">перезаписать</button></div>`;
+  return `
+    <button class="rec-btn" id="rec-mic">🎤</button>
+    <div style="font-size:13px;color:var(--muted);margin-top:12px">Нажми и прочитай фразу вслух</div>`;
+}
+
+function renderRecord(stage) {
+  const isBefore = stage === 'before';
+  return `
+  <div class="ex-screen">
+    <div class="ex-hdr">
+      <button class="close" id="flow-close">✕</button>
+      <span style="color:var(--muted);font-size:13px">${isBefore ? 'Запись ДО' : 'Запись ПОСЛЕ'}</span>
+      <div style="width:32px"></div>
+    </div>
+    <div class="ex-body" style="align-items:center;text-align:center;justify-content:center">
+      <div class="rec-badge">${isBefore ? '1' : '2'}</div>
+      <h2 style="font-size:21px;font-weight:800;margin:18px 0 6px">${isBefore ? 'Запиши себя ДО' : 'Запиши себя ПОСЛЕ'}</h2>
+      <p style="color:var(--muted);font-size:14px;line-height:1.6;max-width:300px">${isBefore ? 'Это твоя точка отсчёта — потом сравнишь, как изменился голос.' : 'Прочитай ту же фразу и услышь разницу.'}</p>
+      <div class="text-block" style="flex:none;margin:18px 0;max-width:340px"><p class="read-text" style="font-size:16px;text-align:center">«${CALIB_PHRASE}»</p></div>
+      <div id="rec-area">${recordButtonHtml()}</div>
+      <div class="mt" style="width:100%;max-width:340px;margin-top:26px">
+        <button class="btn ${S.vHasRec ? 'btn-p' : 'btn-d'}" id="flow-next" ${S.vHasRec ? '' : 'style="opacity:.55"'}>${S.vHasRec ? 'Продолжить →' : 'Сначала запишись'}</button>
+        <button class="btn" style="background:none;color:var(--muted);margin-top:8px" id="flow-skip">Пропустить запись</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderFinish() {
+  const ex = S.exercise;
+  const s = S.stats;
+  return `
+  <div class="done-screen">
+    <div style="font-size:64px;margin-bottom:8px">🎉</div>
+    <h2 style="font-size:26px;font-weight:900;margin-bottom:6px">Шаг пройден!</h2>
+    <p style="color:var(--muted);font-size:14px;margin-bottom:22px">${ex.title}</p>
+    <div style="display:flex;gap:10px;width:100%;max-width:320px;margin-bottom:12px">
+      <div class="stat"><div class="stat-v" style="color:var(--gold)">+${XP_PER_STEP}</div><div class="stat-l">XP</div></div>
+      <div class="stat"><div class="stat-v" style="color:var(--primary)">🔥${s.streak||0}</div><div class="stat-l">стрик</div></div>
+      <div class="stat"><div class="stat-v" style="color:var(--green)">${energyLeft()}</div><div class="stat-l">энергии</div></div>
+    </div>
+    <div class="card" style="width:100%;max-width:320px;margin-bottom:22px;text-align:left">
+      <p class="lbl">🎙 Голосовой дневник</p>
+      <p style="font-size:13px;color:var(--muted);line-height:1.55">Записи «до» и «после» сохранены. Скоро сможешь сравнивать прогресс во времени.</p>
+    </div>
+    <button class="btn btn-p" id="flow-finish">Дальше →</button>
+  </div>`;
+}
+
+// ── Voice recording (MediaRecorder) ──
+let mediaRec = null, mediaChunks = [], mediaStream = null;
+async function startVoiceRec() {
+  if (!navigator.mediaDevices?.getUserMedia) { alert('Запись недоступна в этом окружении. Можно пропустить.'); return; }
+  try {
+    mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (e) { alert('Нет доступа к микрофону. Можно пропустить запись.'); return; }
+  mediaChunks = [];
+  try { mediaRec = new MediaRecorder(mediaStream); }
+  catch (e) { mediaRec = new MediaRecorder(mediaStream, { mimeType: 'audio/webm' }); }
+  mediaRec.ondataavailable = e => { if (e.data && e.data.size) mediaChunks.push(e.data); };
+  mediaRec.onstop = () => {
+    const blob = new Blob(mediaChunks, { type: mediaChunks[0]?.type || 'audio/webm' });
+    if (S.vUrl) URL.revokeObjectURL(S.vUrl);
+    S.vUrl = URL.createObjectURL(blob);
+    S.vHasRec = true;
+    mediaStream?.getTracks().forEach(t => t.stop());
+    render();
+  };
+  mediaRec.start();
+  S.vRecording = true; S.vTimeLeft = 10;
+  tg.HapticFeedback.impactOccurred('medium');
+  render();
+  S.vTimer = setInterval(() => {
+    S.vTimeLeft--;
+    const el = document.getElementById('rec-timer');
+    if (el) el.textContent = S.vTimeLeft + 'с';
+    if (S.vTimeLeft <= 0) stopVoiceRec();
+  }, 1000);
+}
+function stopVoiceRec() {
+  clearInterval(S.vTimer); S.vTimer = null;
+  S.vRecording = false;
+  try { if (mediaRec && mediaRec.state !== 'inactive') mediaRec.stop(); } catch (e) {}
+}
+function resetVoice() {
+  clearInterval(S.vTimer); S.vTimer = null;
+  S.vRecording = false; S.vHasRec = false;
+  if (S.vUrl) { URL.revokeObjectURL(S.vUrl); S.vUrl = null; }
+}
+
+function advanceRecord() {
+  stopVoiceRec();
+  const stage = S.flowStage;
+  resetVoice();
+  if (stage === 'before') {
+    S.flowStage = 'exercise';
+    resetMechanic(S.exercise);
+    render();
+  } else {
+    completeExercise(S.exercise);
+    S.stats.planIdx = ((S.stats.planIdx||0) + 1) % PLAN.length;
+    saveStats();
+    S.flowStage = 'finish';
+    render();
+  }
+}
+
+function bindFlow() {
+  document.getElementById('flow-close')?.addEventListener('click', closeEx);
+  document.getElementById('flow-start')?.addEventListener('click', () => { S.flowStage = 'before'; resetVoice(); render(); });
+}
+function bindRecord() {
+  document.getElementById('flow-close')?.addEventListener('click', closeEx);
+  document.getElementById('rec-mic')?.addEventListener('click', () => { S.vRecording ? stopVoiceRec() : startVoiceRec(); });
+  document.getElementById('rec-play')?.addEventListener('click', () => { if (S.vUrl) new Audio(S.vUrl).play(); });
+  document.getElementById('rec-redo')?.addEventListener('click', () => { resetVoice(); render(); });
+  document.getElementById('flow-next')?.addEventListener('click', () => { if (S.vHasRec) advanceRecord(); });
+  document.getElementById('flow-skip')?.addEventListener('click', advanceRecord);
+}
+function bindFinish() {
+  document.getElementById('flow-finish')?.addEventListener('click', closeEx);
 }
 
 // ═══════════════════════════════════════════
@@ -828,6 +1115,7 @@ function startBreathing() {
         S.bRound++;
         if (S.bRound > S.exercise.rounds) {
           clearInterval(S.bTimer);
+          if (S.flowStage === 'exercise') { S.flowStage = 'after'; resetVoice(); render(); return; }
           S.bDone = true;
           render();
           return;
@@ -932,6 +1220,7 @@ function stopRec() {
 function nextRound() {
   S.tTranscript = '';
   if (S.tRound >= (S.exercise.rounds||1)) {
+    if (S.flowStage === 'exercise') { S.flowStage = 'after'; resetVoice(); render(); return; }
     S.tDone = true;
   } else {
     S.tRound++;
@@ -953,11 +1242,18 @@ function bindGlobal() {
   document.querySelectorAll('[data-cat]').forEach(el=>{
     el.addEventListener('click', ()=>{ tg.HapticFeedback.selectionChanged(); openCat(el.dataset.cat); });
   });
-  // Exercise cards
+  // Exercise cards (free mode)
   document.querySelectorAll('[data-ex]').forEach(el=>{
     el.addEventListener('click', ()=>{
       const ex = ALL_EX.find(e=>e.id===el.dataset.ex);
       if (ex) { tg.HapticFeedback.selectionChanged(); openEx(ex); }
+    });
+  });
+  // Active step card (daily cycle)
+  document.querySelectorAll('[data-step]').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const ex = ALL_EX.find(e=>e.id===el.dataset.step);
+      if (ex) { tg.HapticFeedback.selectionChanged(); openStep(ex); }
     });
   });
   // Back from category
@@ -974,7 +1270,7 @@ function bindEx() {
   document.getElementById('ex-start')?.addEventListener('click', startTextEx);
   document.getElementById('ex-mic')?.addEventListener('click', ()=>{ S.tRecording?stopRec():startRec(); render(); });
   document.getElementById('ex-next')?.addEventListener('click', nextRound);
-  document.getElementById('ex-skip')?.addEventListener('click', ()=>{ S.tDone=true; render(); });
+  document.getElementById('ex-skip')?.addEventListener('click', ()=>{ if (S.flowStage==='exercise') { S.flowStage='after'; resetVoice(); render(); return; } S.tDone=true; render(); });
   document.getElementById('done-complete')?.addEventListener('click', ()=>{ completeExercise(S.exercise); closeEx(); });
   document.getElementById('done-close')?.addEventListener('click', ()=>{ closeEx(); goTab('home'); });
 }
