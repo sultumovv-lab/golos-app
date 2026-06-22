@@ -120,7 +120,10 @@ def db_count() -> int:
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
     db_add(user.id, user.username, user.first_name)
-    await update.effective_message.reply_text(WELCOME_TEXT)
+    keyboard = InlineKeyboardMarkup(
+        [[InlineKeyboardButton("🎤 Открыть Rezon", web_app=WebAppInfo(url=WEBAPP_URL))]]
+    )
+    await update.effective_message.reply_text(WELCOME_TEXT, reply_markup=keyboard)
 
 
 # --------------------------------------------------------------------------- #
@@ -243,8 +246,10 @@ async def broadcast_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
 #  Запуск
 # --------------------------------------------------------------------------- #
 async def on_startup(app: Application) -> None:
-    """Скрываем кнопку-меню с приложением у всех (по умолчанию)."""
-    await app.bot.set_chat_menu_button(menu_button=MenuButtonDefault())
+    """Кнопка-меню с мини-приложением Rezon доступна всем пользователям."""
+    await app.bot.set_chat_menu_button(
+        menu_button=MenuButtonWebApp(text="Открыть Rezon", web_app=WebAppInfo(url=WEBAPP_URL))
+    )
     logger.info("Бот запущен. Подписчиков в базе: %s", db_count())
 
 
