@@ -299,6 +299,31 @@ const TRIAL_DAYS = 3;
 const PRICE = '$7';
 const FREE_IDS = CATS.map(c => (EX[c.id]||[])[0] && EX[c.id][0].id).filter(Boolean);
 
+// AI-ролевые игры (Stage: сигнатурная фича). Claude играет роль собеседника.
+const ROLEPLAYS = [
+  { id:'self', icon:'👋', title:'Расскажи о себе', diff:'easy',
+    situation:'Лёгкое знакомство: тебя просят кратко и ярко представить себя.',
+    role:'дружелюбный, но внимательно оценивающий человек на нетворкинг-встрече',
+    opener:'Привет! Рад знакомству 🙂 Расскажите немного о себе — чем занимаетесь?' },
+  { id:'interview', icon:'💼', title:'Собеседование', diff:'medium',
+    situation:'Собеседование на желаемую позицию, каверзные вопросы.',
+    role:'вежливый, но строгий интервьюер, который задаёт неудобные вопросы',
+    opener:'Спасибо, что пришли. Начнём прямо: почему мы должны взять именно вас?' },
+  { id:'qa', icon:'🎤', title:'Вопрос из зала', diff:'medium',
+    situation:'Ты только что выступил. Из зала — острый, скептичный вопрос.',
+    role:'скептичный слушатель в зале, который сомневается в твоих словах и давит',
+    opener:'Извините, но мне ваши аргументы не кажутся убедительными. Можете обосновать?' },
+  { id:'negotiation', icon:'🤝', title:'Переговоры', diff:'hard',
+    situation:'Переговоры об условиях сделки. Оппонент жёстко возражает по цене.',
+    role:'жёсткий деловой партнёр, давит по цене и ищет слабые места',
+    opener:'Предложение неплохое, но цена завышена вдвое. Убедите меня, иначе мы не договоримся.' },
+  { id:'raise', icon:'📈', title:'Просьба о повышении', diff:'hard',
+    situation:'Разговор с руководителем о повышении зарплаты.',
+    role:'занятой руководитель, поначалу скептичен, но готов слушать сильные аргументы',
+    opener:'У меня есть пять минут. Вы хотели обсудить зарплату — слушаю вас.' },
+];
+function canDoRoleplay(id) { return hasFullAccess() || id === ROLEPLAYS[0].id; }
+
 // ожидаемый результат и срок по категории (для экрана «Объяснение»)
 const RESULT_BY_CAT = {
   breathing:  { goal:'Опора на дыхание и стабильный, мощный звук', term:'Первые ощущения — уже на 1–2 неделе' },
@@ -382,6 +407,9 @@ let S = {
   // онбординг и профиль (Stage 3)
   profile: null,   // { onboarded, answers, focuses, queue, timeframe, trialStart }
   onb: null,       // { step, answers, plan }  — активен только во время онбординга
+  // AI-роль-плей
+  roleplay: null,  // { sc, msgs, phase, loading, feedback }
+  rpRecording: false,
   // breathing
   bPhases: [], bPhaseIdx: 0, bCountdown: 0, bRound: 1, bRunning: false, bDone: false, bTimer: null,
   // text/guided
@@ -450,6 +478,7 @@ function clearTimers() {
   clearInterval(S.tTimer); S.tTimer = null;
   if (S.tRecording) stopRec();
   if (S.vRecording) stopVoiceRec();
+  if (S.rpRecording) { try { rpRecog && rpRecog.stop(); } catch(e){} S.rpRecording = false; }
 }
 
 function goTab(tab) {
@@ -508,6 +537,7 @@ function closeEx() {
 }
 
 tg.BackButton.onClick(() => {
+  if (S.roleplay) { exitRoleplay(); return; }
   if (S.exercise) { closeEx(); return; }
   if (S.catId) { S.catId = null; tg.BackButton.hide(); render(); return; }
   if (S.tab === 'coach') { S.tab = 'home'; tg.BackButton.hide(); render(); }
@@ -519,6 +549,7 @@ tg.BackButton.onClick(() => {
 function render() {
   const app = document.getElementById('app');
   if (S.onb) { app.innerHTML = renderOnboarding(); bindOnboarding(); return; }
+  if (S.roleplay) { app.innerHTML = renderRoleplay(); bindRoleplay(); if (S.roleplay.phase === 'chat') scrollRoleplay(); return; }
   if (S.exercise) {
     if (S.flowStage === 'explain') { app.innerHTML = renderExplain(); bindFlow(); return; }
     if (S.flowStage === 'before' || S.flowStage === 'after') { app.innerHTML = renderRecord(S.flowStage); bindRecord(); return; }
@@ -689,6 +720,7 @@ function renderToday() {
 // EXERCISES SCREEN
 // ═══════════════════════════════════════════
 function renderExercises() {
+  if (S.catId === 'roleplay') return renderRoleplayList();
   if (S.catId) {
     const cat = CATS.find(c=>c.id===S.catId);
     const exs = EX[S.catId]||[];
@@ -709,6 +741,16 @@ function renderExercises() {
   <div class="screen" style="padding:52px 20px 84px">
     <h1 class="page-title">Упражнения</h1>
     <p class="page-sub">Выбери категорию и начни тренировку</p>
+    <div class="step-card" data-cat="roleplay" style="margin-bottom:18px">
+      <div style="display:flex;align-items:center;gap:14px">
+        <div class="step-ico">🎭</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;opacity:.85">Новое · AI</div>
+          <div style="font-size:18px;font-weight:800;margin-top:2px">Сценарии общения</div>
+          <div style="font-size:13px;opacity:.88;margin-top:2px">Поговори вживую: собеседование, переговоры, выступление</div>
+        </div>
+      </div>
+    </div>
     <div class="card-grid">
       ${CATS.map(cat=>`
       <div class="cat-card" data-cat="${cat.id}">
@@ -1588,6 +1630,13 @@ function bindGlobal() {
       if (ex) { tg.HapticFeedback.selectionChanged(); openStep(ex); }
     });
   });
+  // Roleplay scenario cards
+  document.querySelectorAll('[data-rp]').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const sc = ROLEPLAYS.find(s=>s.id===el.dataset.rp);
+      if (sc) { tg.HapticFeedback.selectionChanged(); openRoleplay(sc); }
+    });
+  });
   // Back from category
   document.querySelector('[data-back="cat"]')?.addEventListener('click', ()=>{
     S.catId=null; tg.BackButton.hide(); render();
@@ -1617,6 +1666,205 @@ function bindCoach() {
   document.querySelectorAll('.quick-q').forEach(el=>{
     el.addEventListener('click', ()=>{ sendCoach(el.dataset.q); });
   });
+}
+
+// ═══════════════════════════════════════════
+// AI-РОЛЕВЫЕ ИГРЫ (сигнатурная фича)
+// ═══════════════════════════════════════════
+function renderRoleplayList() {
+  return `
+  <div class="screen" style="padding:52px 20px 84px">
+    <button class="back" data-back="cat">← Назад</button>
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px">
+      <span style="font-size:28px">🎭</span>
+      <div>
+        <h1 style="font-size:22px;font-weight:800;margin:0">Сценарии общения</h1>
+        <p style="color:var(--muted);font-size:13px;margin:2px 0 0">Поговори с AI и получи разбор от Алмата</p>
+      </div>
+    </div>
+    <div class="gap-10" style="margin-top:16px">
+      ${ROLEPLAYS.map(sc=>{
+        const locked = !canDoRoleplay(sc.id);
+        const dl = { easy:'легко', medium:'средне', hard:'сложно' }[sc.diff];
+        const dc = { easy:'d-e', medium:'d-m', hard:'d-h' }[sc.diff];
+        return `
+        <div class="ex-card" data-rp="${sc.id}" style="${locked?'opacity:.62':''}">
+          <div class="ex-ico" style="background:var(--card);font-size:22px">${sc.icon}</div>
+          <div class="ex-info"><div class="ex-title">${sc.title}</div><div class="ex-desc">${locked?'Доступно в подписке':sc.situation}</div></div>
+          <div class="ex-meta">${locked?'<div style="font-size:18px">🔒</div>':`<div class="ex-diff ${dc}">${dl}</div>`}</div>
+        </div>`;
+      }).join('')}
+    </div>
+  </div>`;
+}
+
+function renderRoleplay() {
+  const rp = S.roleplay;
+  if (rp.phase === 'intro')    return renderRpIntro();
+  if (rp.phase === 'loading')  return renderRpLoading();
+  if (rp.phase === 'feedback') return renderRpFeedback();
+  return renderRpChat();
+}
+
+function renderRpIntro() {
+  const sc = S.roleplay.sc;
+  return `
+  <div class="ex-screen"><div class="ex-body" style="justify-content:center;text-align:center;align-items:center">
+    <div class="avatar-ring" style="width:80px;height:80px"><div class="avatar-face" style="font-size:36px">${sc.icon}</div></div>
+    <h2 style="font-size:22px;font-weight:800;margin:18px 0 6px">${sc.title}</h2>
+    <p style="color:var(--muted);font-size:14px;line-height:1.6;max-width:320px">${sc.situation}</p>
+    <div class="card" style="margin-top:16px;max-width:340px;text-align:left;width:100%">
+      <p class="lbl">🎭 С кем говоришь</p>
+      <p style="font-size:14px;line-height:1.55">${sc.role}</p>
+    </div>
+    <div class="card" style="margin-top:10px;max-width:340px;text-align:left;width:100%">
+      <p class="lbl">💡 Как это работает</p>
+      <p style="font-size:13px;color:var(--muted);line-height:1.55">Отвечай голосом (🎤) или текстом. В конце Алмат разберёт, как ты держался.</p>
+    </div>
+    <div class="mt" style="width:100%;max-width:340px"><button class="btn btn-p" id="rp-start">Начать диалог →</button></div>
+    <button class="btn" style="background:none;color:var(--muted);margin-top:6px;max-width:340px" id="rp-close">Назад</button>
+  </div></div>`;
+}
+
+function renderRpChat() {
+  const rp = S.roleplay;
+  const userTurns = rp.msgs.filter(m=>m.role==='user').length;
+  return `
+  <div class="coach-screen">
+    <div style="padding:52px 20px 12px;border-bottom:1px solid var(--border);flex-shrink:0;display:flex;align-items:center;gap:10px">
+      <button class="close" id="rp-close" style="font-size:20px;width:auto">✕</button>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:800;font-size:16px">${rp.sc.icon} ${rp.sc.title}</div>
+        <div style="color:var(--muted);font-size:12px">Ролевая тренировка</div>
+      </div>
+    </div>
+    <div class="chat-msgs" id="chat-msgs">
+      ${rp.msgs.map(m=>msgHtml(m)).join('')}
+      ${rp.loading?loadingDots():''}
+    </div>
+    <div class="chat-inp-area">
+      ${userTurns>=1 ? `<button class="btn btn-g" id="rp-finish" style="margin-bottom:10px">Завершить и получить разбор ✓</button>` : ''}
+      <div class="chat-row">
+        <button class="chat-send" id="rp-mic" style="background:var(--card);border:1px solid var(--border)">🎤</button>
+        <input class="chat-inp" id="rp-input" placeholder="Ответь голосом или текстом..." autocomplete="off">
+        <button class="chat-send" id="rp-send">→</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderRpLoading() {
+  return `
+  <div class="ex-screen"><div class="ex-body" style="justify-content:center;align-items:center;text-align:center">
+    <div class="avatar-ring" style="width:80px;height:80px;position:relative"><div class="avatar-face" style="font-size:36px">🎤</div><span class="rec-pulse" style="border-color:var(--primary)"></span></div>
+    <h2 style="font-size:20px;font-weight:800;margin:22px 0 8px">Алмат разбирает диалог…</h2>
+    <p style="color:var(--muted);font-size:14px">Смотрю, как ты держался и что улучшить</p>
+  </div></div>`;
+}
+
+function renderRpFeedback() {
+  const rp = S.roleplay;
+  return `
+  <div class="ex-screen"><div class="ex-body" style="padding-top:46px">
+    <div style="text-align:center"><div class="rec-badge" style="margin:0 auto">🎭</div></div>
+    <h1 style="font-size:23px;font-weight:900;text-align:center;margin:12px 0 4px">Разбор от Алмата</h1>
+    <p style="text-align:center;color:var(--muted);font-size:13px;margin-bottom:16px">${rp.sc.title} · +${XP_PER_STEP} XP</p>
+    <div class="card" style="margin-bottom:16px"><p style="font-size:14px;line-height:1.65;white-space:pre-wrap">${rp.feedback}</p></div>
+    <div class="mt">
+      <button class="btn btn-p" id="rp-again">Пройти ещё раз</button>
+      <button class="btn" style="background:none;color:var(--muted);margin-top:8px" id="rp-done">Готово</button>
+    </div>
+  </div></div>`;
+}
+
+function scrollRoleplay() { const el=document.getElementById('chat-msgs'); if(el) setTimeout(()=>{ el.scrollTop=el.scrollHeight; },30); }
+
+function openRoleplay(sc) {
+  if (!canDoRoleplay(sc.id)) { showSubModal('exercise'); return; }
+  if (energyBlocked()) { showSubModal('energy'); return; }
+  clearTimers();
+  S.roleplay = { sc, msgs:[{ role:'assistant', text:sc.opener }], phase:'intro', loading:false, feedback:null };
+  tg.BackButton.show();
+  render();
+}
+
+function exitRoleplay() {
+  if (S.rpRecording) { try { rpRecog && rpRecog.stop(); } catch(e){} S.rpRecording = false; }
+  S.roleplay = null;
+  S.catId = 'roleplay';   // вернуться к списку сценариев
+  tg.BackButton.show();
+  render();
+}
+
+async function sendRoleplay(text) {
+  text = (text||'').trim();
+  const rp = S.roleplay;
+  if (!text || !rp || rp.loading) return;
+  rp.msgs.push({ role:'user', text });
+  rp.loading = true; render();
+  try {
+    const apiMsgs = rp.msgs.slice(1).map(m=>({ role:m.role, content:m.text }));
+    const res = await fetch('/api/roleplay', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ scenario:{ situation:rp.sc.situation, role:rp.sc.role, opener:rp.sc.opener }, messages:apiMsgs, phase:'converse' }),
+    });
+    if (!res.ok) throw new Error('http');
+    const data = await res.json();
+    rp.msgs.push({ role:'assistant', text:data.text || '…' });
+  } catch(e) {
+    rp.msgs.push({ role:'assistant', text:'⚠️ Не удалось ответить (проверь связь). Попробуй ещё раз или заверши разбор.' });
+  }
+  rp.loading = false; render();
+}
+
+async function finishRoleplay() {
+  const rp = S.roleplay; if (!rp) return;
+  rp.phase = 'loading'; render();
+  const transcript = rp.msgs.map(m=>(m.role==='user'?'Я: ':'Собеседник: ')+m.text).join('\n');
+  try {
+    const res = await fetch('/api/roleplay', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ scenario:{ situation:rp.sc.situation, role:rp.sc.role, opener:rp.sc.opener }, messages:[{ role:'user', content:'Вот диалог тренировки:\n'+transcript+'\n\nРазбери, как я (реплики «Я:») общался.' }], phase:'feedback' }),
+    });
+    if (!res.ok) throw new Error('http');
+    const data = await res.json();
+    rp.feedback = data.text || 'Не удалось получить разбор.';
+  } catch(e) {
+    rp.feedback = '⚠️ Не удалось получить разбор — проверь соединение и попробуй ещё раз.';
+  }
+  completeExercise({ id:'rp_'+rp.sc.id, mins:3 });   // XP + стрик + история
+  rp.phase = 'feedback'; render();
+}
+
+let rpRecog = null;
+function rpMic() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const inp = document.getElementById('rp-input');
+  if (!SR) { alert('Голосовой ввод не поддерживается в этом браузере — печатай ответ.'); return; }
+  if (S.rpRecording) { try { rpRecog && rpRecog.stop(); } catch(e){} return; }
+  rpRecog = new SR(); rpRecog.lang = 'ru-RU'; rpRecog.interimResults = true; rpRecog.continuous = true;
+  const base = inp ? inp.value : '';
+  rpRecog.onresult = e => { const t = Array.from(e.results).map(r=>r[0].transcript).join(' '); if (inp) inp.value = (base?base+' ':'') + t; };
+  rpRecog.onerror = () => { S.rpRecording=false; const b=document.getElementById('rp-mic'); if(b) b.textContent='🎤'; };
+  rpRecog.onend   = () => { S.rpRecording=false; const b=document.getElementById('rp-mic'); if(b) b.textContent='🎤'; };
+  try { rpRecog.start(); } catch(e) { return; }
+  S.rpRecording = true; const b=document.getElementById('rp-mic'); if(b) b.textContent='⏹';
+  tg.HapticFeedback.impactOccurred('medium');
+}
+
+function bindRoleplay() {
+  document.getElementById('rp-close')?.addEventListener('click', exitRoleplay);
+  document.getElementById('rp-start')?.addEventListener('click', () => { S.roleplay.phase='chat'; render(); });
+  document.getElementById('rp-mic')?.addEventListener('click', rpMic);
+  const inp = document.getElementById('rp-input');
+  const send = document.getElementById('rp-send');
+  if (send && inp) {
+    send.addEventListener('click', () => { const v=inp.value; inp.value=''; sendRoleplay(v); });
+    inp.addEventListener('keydown', e => { if (e.key==='Enter' && !e.shiftKey) { e.preventDefault(); const v=inp.value; inp.value=''; sendRoleplay(v); } });
+  }
+  document.getElementById('rp-finish')?.addEventListener('click', finishRoleplay);
+  document.getElementById('rp-again')?.addEventListener('click', () => openRoleplay(S.roleplay.sc));
+  document.getElementById('rp-done')?.addEventListener('click', exitRoleplay);
 }
 
 // ═══════════════════════════════════════════
