@@ -195,6 +195,15 @@
     .rec-btn.rec-done { width: 64px; height: 64px; font-size: 24px; background: var(--card); border: 2px solid var(--primary); color: var(--primary); box-shadow: none; }
     .rec-pulse { position: absolute; inset: -7px; border-radius: 50%; border: 2px solid #EF4444; animation: pulse 1.2s ease-out infinite; }
     @keyframes pulse { 0% { transform: scale(1); opacity: .7; } 100% { transform: scale(1.35); opacity: 0; } }
+
+    /* ─── ONBOARDING (Stage 3) ─── */
+    .onb-opt { display: flex; align-items: center; gap: 14px; width: 100%; text-align: left; background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 16px; color: var(--text); font-family: inherit; font-size: 15px; font-weight: 600; cursor: pointer; transition: border-color .15s, transform .1s; margin-bottom: 10px; }
+    .onb-opt:active { border-color: var(--primary); transform: scale(.99); }
+    .onb-opt .oi { font-size: 22px; width: 30px; text-align: center; flex-shrink: 0; }
+    .onb-chip { display: inline-block; background: rgba(232,93,67,.16); color: var(--secondary); border: 1px solid rgba(232,93,67,.4); border-radius: 20px; padding: 6px 12px; font-size: 13px; font-weight: 700; margin: 0 6px 6px 0; }
+    .tf-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+    .tf-row:last-child { border-bottom: none; }
+    .tf-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
   </style>
 </head>
 <body>
@@ -293,6 +302,41 @@ const RESULT_BY_CAT = {
   confidence: { goal:'Спокойствие и уверенность в голосе',          term:'Меньше зажатости — с первых занятий' },
 };
 
+// ═══════════════════════════════════════════
+// ОНБОРДИНГ-ТЕСТ (Stage 3)
+// ═══════════════════════════════════════════
+const ONB_Q = [
+  { key:'problem', q:'Что больше всего мешает в твоём голосе?', opts:[
+    { v:'тихий, его плохо слышно',        label:'Тихий, его не слышно',      icon:'🔈' },
+    { v:'монотонный, без эмоций',         label:'Монотонный, без эмоций',    icon:'😐' },
+    { v:'дрожит от волнения',             label:'Дрожит от волнения',        icon:'😰' },
+    { v:'говорю слишком быстро',          label:'Говорю слишком быстро',     icon:'💨' },
+    { v:'нечёткая дикция',                label:'Нечёткая дикция',           icon:'🗣️' },
+  ]},
+  { key:'situation', q:'Где голос подводит чаще всего?', opts:[
+    { v:'переговоры',             label:'Переговоры',              icon:'🤝' },
+    { v:'публичные выступления',  label:'Публичные выступления',   icon:'🎤' },
+    { v:'личные разговоры',       label:'Личные разговоры',        icon:'💬' },
+    { v:'видео и подкасты',       label:'Видео и подкасты',        icon:'🎬' },
+  ]},
+  { key:'event', q:'Есть ли скоро важное событие?', opts:[
+    { v:'собеседование',          label:'Собеседование',           icon:'💼' },
+    { v:'выступление',            label:'Выступление',             icon:'🎙️' },
+    { v:'переговоры',             label:'Переговоры',              icon:'🤝' },
+    { v:'нет конкретного повода', label:'Нет конкретного повода',  icon:'🌱' },
+  ]},
+  { key:'experience', q:'Занимался голосом раньше?', opts:[
+    { v:'новичок, ничего не пробовал', label:'Нет, я новичок',        icon:'🌱' },
+    { v:'немного опыта',               label:'Немного пробовал',      icon:'📈' },
+    { v:'занимался регулярно',         label:'Занимался регулярно',   icon:'🏆' },
+  ]},
+  { key:'time', q:'Сколько времени готов уделять в день?', opts:[
+    { v:'5 минут',       label:'5 минут',       icon:'⏱️' },
+    { v:'10–15 минут',   label:'10–15 минут',   icon:'⏰' },
+    { v:'20+ минут',     label:'20+ минут',     icon:'🔥' },
+  ]},
+];
+
 function buildPhases(pattern) {
   const p = [];
   if (pattern.inhale) p.push({ name:'Вдох',    dur:pattern.inhale, color:'#E85D43', scale:1.35 });
@@ -329,6 +373,9 @@ let S = {
   tab: 'home',
   catId: null,
   exercise: null,
+  // онбординг и профиль (Stage 3)
+  profile: null,   // { onboarded, answers, focuses, queue, timeframe, trialStart }
+  onb: null,       // { step, answers, plan }  — активен только во время онбординга
   // breathing
   bPhases: [], bPhaseIdx: 0, bCountdown: 0, bRound: 1, bRunning: false, bDone: false, bTimer: null,
   // text/guided
@@ -461,6 +508,7 @@ tg.BackButton.onClick(() => {
 // ═══════════════════════════════════════════
 function render() {
   const app = document.getElementById('app');
+  if (S.onb) { app.innerHTML = renderOnboarding(); bindOnboarding(); return; }
   if (S.exercise) {
     if (S.flowStage === 'explain') { app.innerHTML = renderExplain(); bindFlow(); return; }
     if (S.flowStage === 'before' || S.flowStage === 'after') { app.innerHTML = renderRecord(S.flowStage); bindRecord(); return; }
@@ -498,10 +546,15 @@ function renderNav() {
 // ═══════════════════════════════════════════
 // HOME SCREEN
 // ═══════════════════════════════════════════
+function planQueue() {
+  const q = S.profile && Array.isArray(S.profile.queue) && S.profile.queue.length ? S.profile.queue : PLAN;
+  return q.filter(id => ALL_EX.some(e => e.id === id));
+}
 function planStep(offset=0) {
-  const idx = ((S.stats.planIdx||0) + offset) % PLAN.length;
-  const ex = ALL_EX.find(e => e.id === PLAN[idx]);
-  const cat = CATS.find(c => c.id === EX_CAT[ex.id]);
+  const q = planQueue();
+  const idx = ((S.stats.planIdx||0) + offset) % q.length;
+  const ex = ALL_EX.find(e => e.id === q[idx]) || ALL_EX[0];
+  const cat = CATS.find(c => c.id === EX_CAT[ex.id]) || {};
   return { ex, cat };
 }
 function energyLeft() { return Math.max(0, MAX_ENERGY - (S.stats.today||0)); }
@@ -903,7 +956,7 @@ function advanceRecord() {
     render();
   } else {
     completeExercise(S.exercise);
-    S.stats.planIdx = ((S.stats.planIdx||0) + 1) % PLAN.length;
+    S.stats.planIdx = ((S.stats.planIdx||0) + 1) % planQueue().length;
     saveStats();
     S.flowStage = 'finish';
     render();
@@ -924,6 +977,229 @@ function bindRecord() {
 }
 function bindFinish() {
   document.getElementById('flow-finish')?.addEventListener('click', closeEx);
+}
+
+// ═══════════════════════════════════════════
+// ОНБОРДИНГ (Stage 3)
+// ═══════════════════════════════════════════
+function renderOnboarding() {
+  const step = S.onb.step;
+  if (step === 'intro')   return renderOnbIntro();
+  if (step === 'voice')   return renderOnbVoice();
+  if (step === 'loading') return renderOnbLoading();
+  if (step === 'plan')    return renderOnbPlan();
+  return renderOnbQuestion(step);
+}
+
+function renderOnbIntro() {
+  return `
+  <div class="ex-screen"><div class="ex-body" style="justify-content:center;align-items:center;text-align:center">
+    <div class="avatar-ring" style="width:88px;height:88px"><div class="avatar-face" style="font-size:40px">🎤</div></div>
+    <p class="lbl" style="background:var(--grad);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;font-size:13px;letter-spacing:.18em;margin-top:18px">REZON</p>
+    <h1 style="font-size:26px;font-weight:900;margin:8px 0 10px;max-width:320px">Голос, речь и уверенность</h1>
+    <p style="color:var(--muted);font-size:15px;line-height:1.6;max-width:320px">Привет! Я Алмат. Ответь на 5 вопросов за минуту — и я соберу персональный план именно под твой голос.</p>
+    <div class="mt" style="width:100%;max-width:340px"><button class="btn btn-p" id="onb-start">Составить мой план →</button></div>
+  </div></div>`;
+}
+
+function renderOnbQuestion(i) {
+  const Q = ONB_Q[i];
+  const pct = ((i) / ONB_Q.length) * 100;
+  return `
+  <div class="ex-screen">
+    <div class="ex-hdr">
+      <button class="close" id="onb-back">←</button>
+      <span style="color:var(--muted);font-size:13px">Вопрос ${i+1} из ${ONB_Q.length}</span>
+      <div style="width:32px"></div>
+    </div>
+    <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+    <div class="ex-body">
+      <h2 style="font-size:22px;font-weight:800;margin:18px 0 20px">${Q.q}</h2>
+      ${Q.opts.map(o=>`
+        <button class="onb-opt" data-onb-opt="${o.v}">
+          <span class="oi">${o.icon}</span><span>${o.label}</span>
+        </button>`).join('')}
+    </div>
+  </div>`;
+}
+
+function renderOnbVoice() {
+  return `
+  <div class="ex-screen">
+    <div class="ex-hdr">
+      <button class="close" id="onb-back">←</button>
+      <span style="color:var(--muted);font-size:13px">Последний шаг</span>
+      <div style="width:32px"></div>
+    </div>
+    <div class="ex-body" style="align-items:center;text-align:center;justify-content:center">
+      <div class="rec-badge">🎙️</div>
+      <h2 style="font-size:21px;font-weight:800;margin:18px 0 6px">Запиши свой голос сейчас</h2>
+      <p style="color:var(--muted);font-size:14px;line-height:1.6;max-width:300px">Это твоя точка отсчёта. Через пару недель сравнишь — и услышишь, как изменился голос.</p>
+      <div class="text-block" style="flex:none;margin:18px 0;max-width:340px"><p class="read-text" style="font-size:16px;text-align:center">«${CALIB_PHRASE}»</p></div>
+      <div id="rec-area">${recordButtonHtml()}</div>
+      <div class="mt" style="width:100%;max-width:340px;margin-top:24px">
+        <button class="btn btn-p" id="onb-voice-next">${S.vHasRec ? 'Готово, построить план →' : 'Продолжить без записи →'}</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderOnbLoading() {
+  return `
+  <div class="ex-screen"><div class="ex-body" style="justify-content:center;align-items:center;text-align:center">
+    <div class="avatar-ring" style="width:88px;height:88px;position:relative">
+      <div class="avatar-face" style="font-size:40px">🎤</div>
+      <span class="rec-pulse" style="border-color:var(--primary)"></span>
+    </div>
+    <h2 style="font-size:20px;font-weight:800;margin:22px 0 8px">Алмат составляет твой план…</h2>
+    <p style="color:var(--muted);font-size:14px;max-width:300px">Анализирую ответы и подбираю упражнения под твою задачу</p>
+    <div style="margin-top:18px"><span class="dot"></span><span class="dot" style="animation-delay:.2s;margin-left:6px"></span><span class="dot" style="animation-delay:.4s;margin-left:6px"></span></div>
+  </div></div>`;
+}
+
+function renderOnbPlan() {
+  const p = S.onb.plan;
+  const tf = p.timeframe || {};
+  const preview = p.queue.slice(0, 3).map(id => {
+    const ex = ALL_EX.find(e => e.id === id) || {};
+    const cat = CATS.find(c => c.id === EX_CAT[id]) || {};
+    return { ex, cat };
+  });
+  return `
+  <div class="ex-screen"><div class="ex-body" style="padding-top:40px">
+    <p class="lbl" style="text-align:center">🎯 Твой персональный план готов</p>
+    <h1 style="font-size:24px;font-weight:900;text-align:center;margin:6px 0 16px">План составлен</h1>
+
+    <div class="card" style="margin-bottom:14px">
+      <p style="font-size:15px;line-height:1.6">${p.intro}</p>
+    </div>
+
+    <p class="lbl">Главный фокус</p>
+    <div style="margin-bottom:16px">${(p.focuses||[]).map(f=>`<span class="onb-chip">${f}</span>`).join('')}</div>
+
+    <p class="lbl">Честные сроки</p>
+    <div class="card" style="margin-bottom:16px">
+      <div class="tf-row"><span class="tf-dot" style="background:var(--gold)"></span><div><b style="font-size:14px">${tf.habit||'2–3 недели'}</b><div style="color:var(--muted);font-size:12px">привычка и первые ощущения</div></div></div>
+      <div class="tf-row"><span class="tf-dot" style="background:var(--primary)"></span><div><b style="font-size:14px">${tf.visible||'6–8 недель'}</b><div style="color:var(--muted);font-size:12px">заметные изменения</div></div></div>
+      <div class="tf-row"><span class="tf-dot" style="background:var(--green)"></span><div><b style="font-size:14px">${tf.mastery||'3–4 месяца'}</b><div style="color:var(--muted);font-size:12px">устойчивый навык</div></div></div>
+    </div>
+
+    <p class="lbl">С чего начнём</p>
+    <div class="gap-10" style="margin-bottom:8px">
+      ${preview.map((s,i)=>`
+        <div class="ex-card">
+          <div class="ex-ico" style="background:${s.cat.bg||'var(--card)'}">${i+1}</div>
+          <div class="ex-info"><div class="ex-title">${s.ex.title||''}</div><div class="ex-desc">${s.cat.name||''}</div></div>
+        </div>`).join('')}
+    </div>
+
+    <div class="mt" style="padding-top:14px">
+      <button class="btn btn-p" id="onb-finish">Начать 3 дня бесплатно →</button>
+      <p style="text-align:center;color:var(--dim);font-size:12px;margin-top:10px">Полный доступ к плану на 3 дня. Без оплаты сейчас.</p>
+    </div>
+  </div></div>`;
+}
+
+function bindOnboarding() {
+  const step = S.onb.step;
+  document.getElementById('onb-start')?.addEventListener('click', () => { S.onb.step = 0; render(); });
+  document.getElementById('onb-back')?.addEventListener('click', () => {
+    if (typeof step === 'number') S.onb.step = step > 0 ? step - 1 : 'intro';
+    else if (step === 'voice') S.onb.step = ONB_Q.length - 1;
+    render();
+  });
+  document.querySelectorAll('[data-onb-opt]').forEach(el => el.addEventListener('click', () => answerOnb(el.dataset.onbOpt)));
+  document.getElementById('rec-mic')?.addEventListener('click', () => { S.vRecording ? stopVoiceRec() : startVoiceRec(); });
+  document.getElementById('rec-play')?.addEventListener('click', () => { if (S.vUrl) new Audio(S.vUrl).play(); });
+  document.getElementById('rec-redo')?.addEventListener('click', () => { resetVoice(); render(); });
+  document.getElementById('onb-voice-next')?.addEventListener('click', () => { stopVoiceRec(); generatePlan(); });
+  document.getElementById('onb-finish')?.addEventListener('click', finishOnboarding);
+}
+
+function answerOnb(val) {
+  const i = S.onb.step;
+  S.onb.answers[ONB_Q[i].key] = val;
+  tg.HapticFeedback.selectionChanged();
+  if (i < ONB_Q.length - 1) S.onb.step = i + 1;
+  else { S.onb.step = 'voice'; resetVoice(); }
+  render();
+}
+
+async function generatePlan() {
+  S.onb.step = 'loading'; render();
+  const catalog = ALL_EX.map(e => ({
+    id: e.id, title: e.title, cat: EX_CAT[e.id],
+    catName: (CATS.find(c => c.id === EX_CAT[e.id]) || {}).name,
+    diff: e.diff, mins: e.mins,
+  }));
+  let plan = null;
+  try {
+    const ctrl = new AbortController();
+    const to = setTimeout(() => ctrl.abort(), 20000);
+    const res = await fetch('/api/plan', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ answers: S.onb.answers, catalog }), signal: ctrl.signal,
+    });
+    clearTimeout(to);
+    if (res.ok) plan = validatePlan(await res.json());
+  } catch (e) {}
+  if (!plan) plan = fallbackPlan(S.onb.answers);
+  if (!S.onb) return;            // пользователь мог выйти
+  S.onb.plan = plan; S.onb.step = 'plan'; render();
+}
+
+function validatePlan(d) {
+  if (!d || typeof d !== 'object') return null;
+  const ids = new Set(ALL_EX.map(e => e.id));
+  const queue = Array.isArray(d.queue) ? d.queue.filter(id => ids.has(id)) : [];
+  if (queue.length < 3) return null;
+  return {
+    focuses: Array.isArray(d.focuses) && d.focuses.length ? d.focuses.slice(0, 2) : ['Твой голос'],
+    queue,
+    timeframe: d.timeframe && typeof d.timeframe === 'object' ? d.timeframe : { habit:'2–3 недели', visible:'6–8 недель', mastery:'3–4 месяца' },
+    intro: typeof d.intro === 'string' && d.intro ? d.intro : 'Я собрал план под твою задачу. Начнём с основы и пойдём шаг за шагом.',
+  };
+}
+
+function fallbackPlan(a) {
+  const map = {
+    'тихий, его плохо слышно': ['resonance','breathing'],
+    'монотонный, без эмоций':  ['pace','resonance'],
+    'дрожит от волнения':      ['confidence','breathing'],
+    'говорю слишком быстро':   ['pace','breathing'],
+    'нечёткая дикция':         ['diction','breathing'],
+  };
+  const focusCats = map[a.problem] || ['breathing','confidence'];
+  const order = ['breathing', ...focusCats, 'diction','resonance','pace','confidence'];
+  const seen = new Set(); const cats = [];
+  order.forEach(c => { if (!seen.has(c)) { seen.add(c); cats.push(c); } });
+  const rank = { easy:0, medium:1, hard:2 };
+  let queue = [];
+  cats.forEach(c => { (EX[c]||[]).slice().sort((x,y)=>rank[x.diff]-rank[y.diff]).forEach(e=>queue.push(e.id)); });
+  queue = queue.slice(0, 10);
+  const focuses = focusCats.map(c => (CATS.find(x => x.id === c) || {}).name).filter(Boolean);
+  const fast = a.time === '20+ минут', slow = a.time === '5 минут';
+  return {
+    focuses,
+    queue,
+    timeframe: { habit: slow ? '3–4 недели' : '2–3 недели', visible: fast ? '5–6 недель' : '6–8 недель', mastery: '3–4 месяца' },
+    intro: `Понял тебя. Сделаем упор на: ${focuses.join(' и ')}. Начнём с дыхательной опоры — это фундамент голоса, а дальше по нарастающей.`,
+  };
+}
+
+function finishOnboarding() {
+  const p = S.onb.plan;
+  S.profile = { onboarded:true, answers:S.onb.answers, focuses:p.focuses, queue:p.queue, timeframe:p.timeframe, trialStart:Date.now() };
+  store.set('rezon_profile', JSON.stringify(S.profile));
+  S.stats.planIdx = 0; saveStats();
+  S.onb = null; S.tab = 'home'; tg.BackButton.hide();
+  resetVoice();
+  tg.HapticFeedback.notificationOccurred('success');
+  render();
+}
+
+async function loadProfile() {
+  try { const raw = await store.get('rezon_profile'); if (raw) S.profile = JSON.parse(raw); } catch (e) {}
 }
 
 // ═══════════════════════════════════════════
@@ -1317,6 +1593,8 @@ function showSubModal() {
 // ═══════════════════════════════════════════
 async function init() {
   await loadStats();
+  await loadProfile();
+  if (!S.profile || !S.profile.onboarded) S.onb = { step:'intro', answers:{}, plan:null };
   render();
 }
 
