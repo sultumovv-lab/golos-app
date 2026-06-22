@@ -204,6 +204,7 @@
     .tf-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
     .tf-row:last-child { border-bottom: none; }
     .tf-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .lvl-badge { width: 44px; height: 44px; border-radius: 12px; background: var(--grad); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 18px; flex-shrink: 0; }
   </style>
 </head>
 <body>
@@ -292,6 +293,11 @@ const CALIB_PHRASE = 'Привет! Я готов работать над сво
 // сопоставление упражнение → категория
 const EX_CAT = {};
 for (const c of CATS) (EX[c.id]||[]).forEach(e => { EX_CAT[e.id] = c.id; });
+
+// Freemium (Stage 5): 1 упражнение из каждой категории бесплатно навсегда
+const TRIAL_DAYS = 3;
+const PRICE = '$7';
+const FREE_IDS = CATS.map(c => (EX[c.id]||[])[0] && EX[c.id][0].id).filter(Boolean);
 
 // ожидаемый результат и срок по категории (для экрана «Объяснение»)
 const RESULT_BY_CAT = {
@@ -472,6 +478,8 @@ function resetMechanic(ex) {
 
 // свободный режим — из таба «Упражнения» (без записи до/после)
 function openEx(ex) {
+  if (!canDo(ex.id)) { showSubModal('exercise'); return; }
+  if (energyBlocked()) { showSubModal('energy'); return; }
   clearTimers();
   S.exercise = ex; S.flowStage = null;
   resetMechanic(ex);
@@ -481,6 +489,8 @@ function openEx(ex) {
 
 // режим цикла — из главного экрана «Сегодня» (Объяснение → запись → упражнение → запись → финиш)
 function openStep(ex) {
+  if (!canDo(ex.id)) { showSubModal('plan'); return; }
+  if (energyBlocked()) { showSubModal('energy'); return; }
   clearTimers();
   S.exercise = ex; S.flowStage = 'explain';
   resetMechanic(ex);
@@ -557,6 +567,26 @@ function planStep(offset=0) {
   const cat = CATS.find(c => c.id === EX_CAT[ex.id]) || {};
   return { ex, cat };
 }
+
+// ── доступ / триал / уровни (Stage 4–5) ──
+function levelInfo() { const xp = S.stats.xp || 0; return { level: Math.floor(xp/100)+1, into: xp%100, xp }; }
+function trialDaysLeft() {
+  if (!S.profile || !S.profile.trialStart) return 0;
+  return Math.max(0, Math.ceil(TRIAL_DAYS - (Date.now() - S.profile.trialStart) / 86400000));
+}
+function trialActive() { return trialDaysLeft() > 0; }
+function isPremium() { return !!(S.profile && S.profile.premium); }   // реальная оплата — Stage 8 (Lava.top)
+function hasFullAccess() { return isPremium() || trialActive(); }
+function isFree(id) { return FREE_IDS.includes(id); }
+function canDo(id) { return hasFullAccess() || isFree(id); }
+function energyBlocked() { return !hasFullAccess() && energyLeft() <= 0; }
+function paywallUrgency() {
+  const ev = S.profile && S.profile.answers && S.profile.answers.event;
+  if (ev === 'собеседование') return 'До собеседования каждый день на счету — подготовь голос заранее.';
+  if (ev === 'выступление')   return 'Скоро выступление. Пусть голос звучит уверенно.';
+  if (ev === 'переговоры')    return 'Переговоры выигрывает голос, которому доверяют.';
+  return 'Занимайся каждый день и закрепи результат без ограничений.';
+}
 function energyLeft() { return Math.max(0, MAX_ENERGY - (S.stats.today||0)); }
 function weekDots() {
   const labels = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
@@ -596,7 +626,7 @@ function renderToday() {
       <div class="card" style="margin-bottom:16px">
         <div class="row-between" style="margin-bottom:12px">
           <span class="lbl" style="margin:0">Эта неделя</span>
-          <span style="font-size:13px;font-weight:700;color:var(--gold)">⚡ ${energy}/${MAX_ENERGY} энергии</span>
+          <span style="font-size:13px;font-weight:700;color:var(--gold)">⚡ ${hasFullAccess() ? '∞' : energy + '/' + MAX_ENERGY} энергии</span>
         </div>
         <div style="display:flex;justify-content:space-between">
           ${dots.map(d=>`<div style="flex:1;text-align:center">
@@ -606,24 +636,35 @@ function renderToday() {
         </div>
       </div>
 
+      ${trialActive() && !isPremium() ? `
+      <div class="card" style="border-color:var(--primary);margin-bottom:14px;display:flex;align-items:center;gap:12px">
+        <span style="font-size:22px">🎁</span>
+        <div style="font-size:13px;line-height:1.4"><b>Полный доступ открыт</b><br><span style="color:var(--muted)">Бесплатно ещё ${trialDaysLeft()} дн. — занимайся без ограничений</span></div>
+      </div>` : ''}
+      ${!hasFullAccess() ? `
+      <div class="card" data-sub="plan" style="border-color:var(--primary);margin-bottom:14px;display:flex;align-items:center;gap:12px;cursor:pointer">
+        <span style="font-size:22px">🔒</span>
+        <div style="font-size:13px;line-height:1.4"><b>Пробные 3 дня закончились</b><br><span style="color:var(--muted)">Открой полный план — нажми, чтобы продолжить</span></div>
+      </div>` : ''}
+
       <p class="lbl">Твой шаг сейчас</p>
-      ${energy > 0 ? `
+      ${!energyBlocked() ? `
       <div class="step-card" data-step="${aex.id}">
         <div style="display:flex;align-items:center;gap:14px">
           <div class="step-ico">${acat.icon}</div>
           <div style="flex:1;min-width:0">
-            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;opacity:.85">${acat.name}</div>
+            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;opacity:.85">${acat.name}${canDo(aex.id) ? '' : ' · 🔒'}</div>
             <div style="font-size:18px;font-weight:800;margin-top:2px">${aex.title}</div>
             <div style="font-size:13px;opacity:.88;margin-top:2px">${aex.desc}</div>
           </div>
         </div>
-        <button class="btn" style="background:#fff;color:#C9492F;margin-top:16px">Начать · ${aex.mins} мин →</button>
+        <button class="btn" style="background:#fff;color:#C9492F;margin-top:16px">${canDo(aex.id) ? `Начать · ${aex.mins} мин →` : 'Открыть в подписке →'}</button>
       </div>` : `
       <div class="card" style="text-align:center;padding:28px 20px">
         <div style="font-size:40px;margin-bottom:8px">⚡</div>
         <div style="font-weight:800;font-size:16px">Энергия на сегодня закончилась</div>
         <p style="color:var(--muted);font-size:13px;margin:6px 0 16px">Возвращайся завтра — или открой полный доступ без лимитов.</p>
-        <button class="btn btn-p" id="show-sub">Открыть полный доступ</button>
+        <button class="btn btn-p" data-sub="energy">Открыть полный доступ</button>
       </div>`}
 
       <p class="lbl" style="margin-top:22px">Далее в плане</p>
@@ -683,16 +724,16 @@ function renderExercises() {
 function exCard(ex, cat) {
   const dClass = { easy:'d-e', medium:'d-m', hard:'d-h' }[ex.diff]||'d-e';
   const dLabel = { easy:'легко', medium:'средне', hard:'сложно' }[ex.diff]||'';
+  const locked = !canDo(ex.id);
   return `
-  <div class="ex-card" data-ex="${ex.id}">
+  <div class="ex-card" data-ex="${ex.id}" style="${locked ? 'opacity:.62' : ''}">
     <div class="ex-ico" style="background:${cat.bg}">${cat.icon}</div>
     <div class="ex-info">
       <div class="ex-title">${ex.title}</div>
-      <div class="ex-desc">${ex.desc}</div>
+      <div class="ex-desc">${locked ? 'Доступно в подписке' : ex.desc}</div>
     </div>
     <div class="ex-meta">
-      <div class="ex-time">${ex.mins} мин</div>
-      <div class="ex-diff ${dClass}">${dLabel}</div>
+      ${locked ? '<div style="font-size:18px">🔒</div>' : `<div class="ex-time">${ex.mins} мин</div><div class="ex-diff ${dClass}">${dLabel}</div>`}
     </div>
   </div>`;
 }
@@ -1207,6 +1248,8 @@ async function loadProfile() {
 // ═══════════════════════════════════════════
 function renderProgress() {
   const s = S.stats;
+  const lv = levelInfo();
+  const doneCount = (s.history||[]).length;
   const now = new Date();
   const days = Array.from({length:28},(_,i)=>{
     const d = new Date(now); d.setDate(d.getDate()-(27-i));
@@ -1215,56 +1258,69 @@ function renderProgress() {
   const active = new Set((s.history||[]).map(h=>h.date));
 
   const achs = [
-    { icon:'🎤', name:'Первый шаг',        desc:'Выполни первое упражнение',      done: s.mins>0 },
-    { icon:'🔥', name:'3 дня подряд',       desc:'Тренируйся 3 дня без перерыва',  done: s.streak>=3 },
-    { icon:'⚡', name:'Голосовой марафон',  desc:'Суммарно 30 минут практики',     done: s.mins>=30 },
-    { icon:'🏆', name:'Оратор',             desc:'7 дней подряд',                   done: s.streak>=7 },
-    { icon:'🌊', name:'Дыхательный мастер', desc:'10 дыхательных упражнений',      done: (s.history||[]).filter(h=>h.id?.startsWith('b')).length>=10 },
+    { icon:'🎤', name:'Первый шаг',        desc:'Первое упражнение',   done: doneCount>0 || (s.mins||0)>0 },
+    { icon:'🔥', name:'3 дня подряд',       desc:'Серия 3 дня',         done: (s.streak||0)>=3 },
+    { icon:'🏆', name:'Неделя силы',        desc:'Серия 7 дней',        done: (s.streak||0)>=7 },
+    { icon:'⚡', name:'Марафон',            desc:'30 минут практики',   done: (s.mins||0)>=30 },
+    { icon:'⭐', name:'Уровень 3',          desc:'Достигни 3 уровня',   done: lv.level>=3 },
+    { icon:'🌊', name:'Дыхательный мастер', desc:'10 дыхательных',      done: (s.history||[]).filter(h=>h.id&&h.id.startsWith('b')).length>=10 },
+    { icon:'🎯', name:'Десятка',            desc:'10 упражнений всего', done: doneCount>=10 },
+    { icon:'💎', name:'Постоянство',        desc:'Серия 30 дней',       done: (s.streak||0)>=30 },
   ];
+  const unlocked = achs.filter(a=>a.done).length;
 
   return `
   <div class="screen" style="padding:52px 20px 84px">
     <h1 class="page-title">Прогресс</h1>
     <p class="page-sub">Твой путь к сильному голосу</p>
 
+    <div class="card" style="margin-bottom:16px">
+      <div class="row-between" style="margin-bottom:12px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="lvl-badge">${lv.level}</div>
+          <div><div style="font-weight:800;font-size:16px">Уровень ${lv.level}</div><div style="color:var(--muted);font-size:12px">${lv.xp} XP всего</div></div>
+        </div>
+        <span style="color:var(--gold);font-weight:700;font-size:13px">${lv.into}/100</span>
+      </div>
+      <div class="progress-bar" style="margin:0"><div class="progress-fill" style="width:${lv.into}%;background:var(--grad)"></div></div>
+    </div>
+
     <div class="stats-row" style="margin-bottom:16px">
-      <div class="stat">
-        <div style="font-size:26px;font-weight:800;color:#FF9F45">🔥 ${s.streak}</div>
-        <div style="color:#FFFFFF;font-size:13px;font-weight:600;margin-top:4px">Дней подряд</div>
-        <div class="stat-l">текущая серия</div>
-      </div>
-      <div class="stat">
-        <div style="font-size:26px;font-weight:800;color:#E85D43">⏱️ ${s.mins}</div>
-        <div style="color:#FFFFFF;font-size:13px;font-weight:600;margin-top:4px">Минут практики</div>
-        <div class="stat-l">всего</div>
-      </div>
+      <div class="stat"><div class="stat-v" style="color:var(--gold)">🔥 ${s.streak||0}</div><div class="stat-l">дней подряд</div></div>
+      <div class="stat"><div class="stat-v" style="color:var(--primary)">⏱ ${s.mins||0}</div><div class="stat-l">минут</div></div>
+      <div class="stat"><div class="stat-v" style="color:var(--green)">✅ ${doneCount}</div><div class="stat-l">упражнений</div></div>
     </div>
 
     <div class="card" style="margin-bottom:16px">
       <p class="lbl" style="margin-bottom:14px">Активность за 4 недели</p>
       <div class="heatmap">${days.map(d=>`<div class="hm-cell ${active.has(d)?'on':''}"></div>`).join('')}</div>
       <div style="display:flex;justify-content:space-between;margin-top:8px">
-        <span style="color:#6E6676;font-size:10px">4 нед. назад</span>
-        <span style="color:#6E6676;font-size:10px">Сегодня</span>
+        <span style="color:var(--dim);font-size:10px">4 нед. назад</span>
+        <span style="color:var(--dim);font-size:10px">Сегодня</span>
       </div>
     </div>
 
-    <div class="card">
-      <p class="lbl" style="margin-bottom:16px">Достижения</p>
+    <div class="card" style="margin-bottom:16px">
+      <p class="lbl">🎙 Голосовой дневник</p>
+      <p style="color:var(--muted);font-size:13px;line-height:1.55;margin-top:4px">Записи «до/после» по каждому упражнению. Сравнение прогресса во времени — скоро.</p>
+    </div>
+
+    <div class="card" style="margin-bottom:16px">
+      <p class="lbl" style="margin-bottom:16px">Достижения · ${unlocked}/${achs.length}</p>
       ${achs.map(a=>`
       <div class="ach ${a.done?'done':''}">
         <div class="ach-ico">${a.icon}</div>
         <div>
           <div style="color:${a.done?'#FFFFFF':'#9A93A0'};font-size:14px;font-weight:600">${a.name}</div>
-          <div style="color:#6E6676;font-size:11px;margin-top:2px">${a.desc}</div>
+          <div style="color:var(--dim);font-size:11px;margin-top:2px">${a.desc}</div>
         </div>
-        ${a.done?'<span style="color:#4ADE80;font-size:18px;margin-left:auto">✓</span>':''}
+        ${a.done?'<span style="color:var(--green);font-size:18px;margin-left:auto">✓</span>':''}
       </div>`).join('')}
     </div>
 
-    <div style="margin-top:16px">
-      <button class="btn btn-p" id="show-sub">🚀 Оформить подписку</button>
-    </div>
+    ${!isPremium()
+      ? `<button class="btn btn-p" data-sub="">🚀 Открыть полный доступ · ${PRICE}/мес</button>`
+      : '<div class="card" style="text-align:center;color:var(--green);font-weight:700">✓ Полный доступ активен</div>'}
   </div>`;
 }
 
@@ -1536,8 +1592,9 @@ function bindGlobal() {
   document.querySelector('[data-back="cat"]')?.addEventListener('click', ()=>{
     S.catId=null; tg.BackButton.hide(); render();
   });
-  // Progress sub button
-  document.getElementById('show-sub')?.addEventListener('click', showSubModal);
+  // Paywall triggers (могут быть несколько на экране)
+  document.querySelectorAll('[data-sub]').forEach(el =>
+    el.addEventListener('click', () => showSubModal(el.dataset.sub || '')));
 }
 
 function bindEx() {
@@ -1565,26 +1622,38 @@ function bindCoach() {
 // ═══════════════════════════════════════════
 // SUBSCRIPTION MODAL
 // ═══════════════════════════════════════════
-function showSubModal() {
+function showSubModal(context) {
+  const heads = {
+    plan:     'Открой свой полный план',
+    energy:   'Хочешь заниматься больше?',
+    exercise: 'Это упражнение — в подписке',
+  };
+  const head = heads[context] || 'Полный доступ к Rezon';
   const modal = document.createElement('div');
   modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.8);z-index:500;display:flex;align-items:flex-end;max-width:430px;margin:0 auto;';
   modal.innerHTML = `
-    <div style="background:#28252F;border-radius:24px 24px 0 0;padding:24px 20px 40px;width:100%;border:1px solid #38343F">
+    <div style="background:var(--card);border-radius:24px 24px 0 0;padding:24px 20px calc(34px + env(safe-area-inset-bottom));width:100%;border:1px solid var(--border)">
+      <div style="text-align:center;font-size:34px;margin-bottom:4px">🚀</div>
+      <h2 style="text-align:center;font-size:20px;font-weight:800;margin-bottom:6px">${head}</h2>
+      <p style="text-align:center;color:var(--muted);font-size:14px;line-height:1.5;margin-bottom:18px">${paywallUrgency()}</p>
       <div class="sub-card">
-        <div class="price">$7</div>
+        <div class="price">${PRICE}</div>
         <div class="price-sub">в месяц · отмена в любой момент</div>
         <div class="feature-list">
-          ${['✅ Все упражнения без ограничений','✅ AI-коуч без лимитов','✅ Отслеживание прогресса','✅ Ежедневные напоминания','✅ Новые упражнения каждую неделю'].map(f=>`<div class="feature-item">${f}</div>`).join('')}
+          ${['Полный персональный план','Все упражнения без лимитов','AI-коуч без ограничений','Голосовой дневник до/после','Новые упражнения каждую неделю'].map(f=>`<div class="feature-item">✅ ${f}</div>`).join('')}
         </div>
       </div>
-      <button class="btn btn-p" id="sub-confirm">Оформить подписку</button>
-      <button class="btn" style="background:none;color:#9A93A0;margin-top:10px" id="sub-close">Не сейчас</button>
+      <button class="btn btn-p" id="sub-confirm">Оформить за ${PRICE}/мес</button>
+      <button class="btn" style="background:none;color:var(--muted);margin-top:8px" id="sub-close">Позже</button>
     </div>`;
   document.body.appendChild(modal);
-  document.getElementById('sub-close')?.addEventListener('click', ()=>modal.remove());
-  document.getElementById('sub-confirm')?.addEventListener('click', ()=>{
-    alert('💳 Здесь будет Telegram Stars или ЮKassa платёж.\nПока в разработке!');
-    modal.remove();
+  tg.HapticFeedback.impactOccurred('medium');
+  const close = () => modal.remove();
+  modal.addEventListener('click', e => { if (e.target === modal) close(); });
+  document.getElementById('sub-close')?.addEventListener('click', close);
+  document.getElementById('sub-confirm')?.addEventListener('click', () => {
+    alert('💳 Здесь подключим оплату Lava.top (этап 8). Подписка пока в разработке.');
+    close();
   });
 }
 
