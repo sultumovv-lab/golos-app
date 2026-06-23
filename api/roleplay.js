@@ -9,15 +9,30 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const { scenario, messages, phase } = req.body || {};
-  if (!scenario || !Array.isArray(messages) || !messages.length) {
-    return res.status(400).json({ error: 'scenario and messages required' });
+  if (!Array.isArray(messages) || !messages.length) {
+    return res.status(400).json({ error: 'messages required' });
+  }
+  if (phase !== 'build' && !scenario) {
+    return res.status(400).json({ error: 'scenario required' });
   }
   if (!process.env.ANTHROPIC_API_KEY) {
     return res.status(500).json({ error: 'API key not configured' });
   }
 
   let system, maxTokens;
-  if (phase === 'feedback') {
+  if (phase === 'build') {
+    // «Твоя ситуация»: из описания пользователя собрать персонажа и сценарий
+    maxTokens = 500;
+    system = `Ты — Алмат, коуч по коммуникации в Rezon. Пользователь описал реальную ситуацию, к которой готовится. Собери под неё ролевой тренажёр.
+Придумай ОДНОГО собеседника (имя, краткая роль, характер/мотив) и его первую реплику, чтобы пользователь сразу попал в разговор.
+Верни ТОЛЬКО валидный JSON без markdown:
+{
+  "title": "Короткое название тренировки, 2–4 слова",
+  "situation": "Одно предложение — суть ситуации, на «ты»",
+  "persona": { "name": "Имя собеседника", "role": "краткая роль (1–3 слова)", "agenda": "характер и мотив собеседника — как его отыгрывать", "face": "один эмодзи лица" },
+  "opener": "Первая реплика собеседника, с которой начинается разговор"
+}`;
+  } else if (phase === 'feedback') {
     maxTokens = 800;
     system = `Ты — Алмат, коуч по голосу и коммуникации в приложении Rezon. Пользователь только что прошёл ролевую тренировку.
 Ситуация: "${scenario.situation}". Ты играл роль: "${scenario.role}".
@@ -68,9 +83,9 @@ ${list}
     const data = await response.json();
     const text = data?.content?.[0]?.text;
     if (!text) throw new Error('empty response');
-    if (phase === 'feedback') {
+    if (phase === 'build' || phase === 'feedback') {
       const s = text.indexOf('{'), e = text.lastIndexOf('}');
-      if (s === -1 || e === -1) throw new Error('no json in feedback');
+      if (s === -1 || e === -1) throw new Error('no json');
       return res.json(JSON.parse(text.slice(s, e + 1)));
     }
     if (Array.isArray(scenario.personas) && scenario.personas.length) {

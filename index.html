@@ -451,6 +451,7 @@ let S = {
   // AI-роль-плей
   roleplay: null,  // { sc, msgs, phase, loading, feedback }
   rpRecording: false,
+  rpBuild: null,   // конструктор «Твоя ситуация»: null | { generating, error }
   // breathing
   bPhases: [], bPhaseIdx: 0, bCountdown: 0, bRound: 1, bRunning: false, bDone: false, bTimer: null,
   // text/guided
@@ -578,6 +579,7 @@ function closeEx() {
 }
 
 tg.BackButton.onClick(() => {
+  if (S.rpBuild) { exitBuilder(); return; }
   if (S.roleplay) { exitRoleplay(); return; }
   if (S.exercise) { closeEx(); return; }
   if (S.catId) { S.catId = null; tg.BackButton.hide(); render(); return; }
@@ -590,6 +592,7 @@ tg.BackButton.onClick(() => {
 function render() {
   const app = document.getElementById('app');
   if (S.onb) { app.innerHTML = renderOnboarding(); bindOnboarding(); return; }
+  if (S.rpBuild) { app.innerHTML = renderRpBuild(); bindRpBuild(); return; }
   if (S.roleplay) { app.innerHTML = renderRoleplay(); bindRoleplay(); if (S.roleplay.phase === 'chat') scrollRoleplay(); if (S.roleplay.phase === 'call') attachSelfView(); return; }
   if (S.exercise) {
     if (S.flowStage === 'explain') { app.innerHTML = renderExplain(); bindFlow(); return; }
@@ -1711,6 +1714,10 @@ function bindGlobal() {
       if (sc) { tg.HapticFeedback.selectionChanged(); openRoleplay(sc, true); }
     });
   });
+  // «Твоя ситуация» — конструктор
+  document.querySelectorAll('[data-rpbuild]').forEach(el=>{
+    el.addEventListener('click', ()=>{ tg.HapticFeedback.selectionChanged(); openBuilder(); });
+  });
   // Back from category
   document.querySelector('[data-back="cat"]')?.addEventListener('click', ()=>{
     S.catId=null; tg.BackButton.hide(); render();
@@ -1756,6 +1763,16 @@ function renderRoleplayList() {
         <p style="color:var(--muted);font-size:13px;margin:2px 0 0">Поговори с AI и получи разбор от Алмата</p>
       </div>
     </div>
+    <div class="step-card" data-rpbuild="1" style="margin-top:16px;margin-bottom:6px">
+      <div style="display:flex;align-items:center;gap:14px">
+        <div class="step-ico">✨</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;opacity:.85">Под тебя · AI</div>
+          <div style="font-size:18px;font-weight:800;margin-top:2px">Твоя ситуация</div>
+          <div style="font-size:13px;opacity:.88;margin-top:2px">Опиши свой реальный разговор — соберём спарринг под него</div>
+        </div>
+      </div>
+    </div>
     <div class="gap-10" style="margin-top:16px">
       ${ROLEPLAYS.map(sc=>{
         const locked = !canDoRoleplay(sc.id);
@@ -1770,6 +1787,77 @@ function renderRoleplayList() {
       }).join('')}
     </div>
   </div>`;
+}
+
+// ── «Твоя ситуация» — конструктор сценария под реальный разговор пользователя ──
+function openBuilder() {
+  if (!hasFullAccess()) { showSubModal('exercise'); return; }
+  clearTimers();
+  S.rpBuild = { generating:false, error:false };
+  tg.BackButton.show();
+  render();
+}
+function exitBuilder() {
+  S.rpBuild = null;
+  S.catId = 'roleplay';
+  tg.BackButton.show();
+  render();
+}
+function renderRpBuild() {
+  const b = S.rpBuild;
+  if (b.generating) {
+    return `
+    <div class="ex-screen"><div class="ex-body" style="justify-content:center;align-items:center;text-align:center">
+      <div class="avatar-ring" style="width:80px;height:80px;position:relative"><div class="avatar-face" style="font-size:36px">✨</div><span class="rec-pulse" style="border-color:var(--primary)"></span></div>
+      <h2 style="font-size:20px;font-weight:800;margin:22px 0 8px">Алмат готовит собеседника…</h2>
+      <p style="color:var(--muted);font-size:14px;max-width:300px">Придумываю персонажа и сценарий под твою ситуацию</p>
+    </div></div>`;
+  }
+  return `
+  <div class="ex-screen">
+    <div class="ex-hdr">
+      <button class="close" id="rp-close" style="font-size:20px;width:auto">✕</button>
+      <span style="color:var(--muted);font-size:13px">Твоя ситуация</span>
+      <div style="width:32px"></div>
+    </div>
+    <div class="ex-body">
+      <div class="rec-badge" style="margin:6px auto 0">✨</div>
+      <h2 style="font-size:21px;font-weight:800;text-align:center;margin:14px 0 6px">Опиши свой разговор</h2>
+      <p style="color:var(--muted);font-size:14px;line-height:1.55;text-align:center;margin-bottom:16px">Кто собеседник, о чём разговор и что в нём сложного. Алмат соберёт спарринг — и можно репетировать.</p>
+      <textarea id="build-input" class="chat-inp" style="width:100%;min-height:120px;resize:none;line-height:1.5;padding:14px" placeholder="Например: завтра прошу повышение у начальника. Он скуповат, любит конкретные цифры и часто перебивает."></textarea>
+      ${b.error ? `<p style="color:#EF4444;font-size:13px;margin-top:10px;text-align:center">Не получилось собрать — попробуй ещё раз или опиши подробнее.</p>` : ''}
+      <div class="mt"><button class="btn btn-p" id="build-go">Собрать спарринг →</button></div>
+      <button class="btn" style="background:none;color:var(--muted);margin-top:6px" id="rp-close-2">Назад</button>
+    </div>
+  </div>`;
+}
+function bindRpBuild() {
+  document.getElementById('rp-close')?.addEventListener('click', exitBuilder);
+  document.getElementById('rp-close-2')?.addEventListener('click', exitBuilder);
+  document.getElementById('build-go')?.addEventListener('click', () => buildScenario(document.getElementById('build-input')?.value || ''));
+}
+async function buildScenario(description) {
+  description = (description||'').trim();
+  if (description.length < 8) { document.getElementById('build-input')?.focus(); return; }
+  S.rpBuild = { generating:true, error:false }; render();
+  let data = null;
+  try {
+    const res = await fetch('/api/roleplay', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ messages:[{ role:'user', content:description }], phase:'build' }) });
+    if (res.ok) data = await res.json();
+  } catch(e) {}
+  if (!data || !data.opener) { S.rpBuild = { generating:false, error:true }; render(); return; }
+  const p = data.persona || {};
+  const sc = {
+    id:'custom', icon:'✨', custom:true,
+    title: data.title || 'Твоя ситуация',
+    name: p.name || 'Собеседник', roleTitle: p.role || '', face: p.face || '🧑', faceBg:'#E85D43',
+    situation: data.situation || description,
+    role: p.agenda || p.role || 'собеседник в этой ситуации',
+    opener: data.opener,
+  };
+  S.rpBuild = null;
+  openRoleplay(sc, false);
 }
 
 function renderRoleplay() {
