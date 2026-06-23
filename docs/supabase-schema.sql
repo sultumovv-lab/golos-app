@@ -1,0 +1,27 @@
+-- Rezon — схема Supabase (выполнить один раз в SQL Editor проекта)
+-- Клиенты НЕ обращаются к базе напрямую — только через наш серверный эндпоинт
+-- (/api/state), который проверяет Telegram initData и ходит в базу с service_role.
+
+create table if not exists public.users (
+  tg_id        bigint primary key,           -- Telegram user id
+  username     text,
+  first_name   text,
+  profile      jsonb not null default '{}'::jsonb,   -- onboarded, answers, focuses, queue, timeframe, trialStart, premium
+  stats        jsonb not null default '{}'::jsonb,   -- streak, xp, mins, today, lastDate, planIdx, history
+  ai_usage     jsonb not null default '{}'::jsonb,   -- { date:'<день>', count:<число вызовов AI за день> }
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now()
+);
+
+-- Включаем Row Level Security и НЕ добавляем политик:
+-- anon/public ключ не получит доступа к таблице, а service_role (сервер) обходит RLS.
+alter table public.users enable row level security;
+
+-- автоматически обновлять updated_at
+create or replace function public.touch_updated_at()
+returns trigger language plpgsql as $$
+begin new.updated_at = now(); return new; end; $$;
+
+drop trigger if exists users_touch on public.users;
+create trigger users_touch before update on public.users
+  for each row execute function public.touch_updated_at();

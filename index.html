@@ -540,6 +540,27 @@ async function loadStats() {
 
 function saveStats() {
   store.set('vt2_stats', JSON.stringify(S.stats));
+  serverSave();
+}
+
+// ── Серверная синхронизация прогресса (Supabase через /api/state) ──
+// initData подписан токеном бота — сервер по нему проверяет личность.
+const TG_INIT = (tg.initData && typeof tg.initData === 'string') ? tg.initData : '';
+async function serverLoad() {
+  if (!TG_INIT) return null;
+  try {
+    const res = await fetch('/api/state', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ initData: TG_INIT, action:'load' }) });
+    if (!res.ok) return null;
+    return await res.json();   // { profile, stats }
+  } catch (e) { return null; }
+}
+function serverSave() {
+  if (!TG_INIT) return;
+  try {
+    fetch('/api/state', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ initData: TG_INIT, action:'save', profile: S.profile || {}, stats: S.stats || {} }) }).catch(()=>{});
+  } catch (e) {}
 }
 
 function completeExercise(ex) {
@@ -2394,6 +2415,19 @@ function showSubModal(context) {
 async function init() {
   await loadStats();
   await loadProfile();
+  // подтягиваем серверный прогресс (если запущены в Telegram)
+  const srv = await serverLoad();
+  if (srv) {
+    const srvS = srv.stats || {};
+    // берём серверные статы, только если они не «беднее» локальных (по XP) — чтобы не потерять прогресс
+    if (Object.keys(srvS).length && (srvS.xp||0) >= (S.stats.xp||0)) {
+      if (srvS.lastDate !== today() && srvS.lastDate !== yesterday()) srvS.streak = 0;
+      if (srvS.lastDate !== today()) srvS.today = 0;
+      S.stats = srvS;
+    }
+    if (srv.profile && srv.profile.onboarded) S.profile = srv.profile;
+    serverSave();   // синхронизируем итоговое состояние обратно
+  }
   if (!S.profile || !S.profile.onboarded) S.onb = { step:'intro', answers:{}, plan:null };
   render();
 }
