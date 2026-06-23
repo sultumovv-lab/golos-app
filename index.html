@@ -499,6 +499,9 @@ let S = {
   roleplay: null,  // { sc, msgs, phase, loading, feedback }
   rpRecording: false,
   rpBuild: null,   // конструктор «Твоя ситуация»: null | { generating, error }
+  vBlob: null,     // последняя запись голоса (Blob) для загрузки
+  voices: null,    // голосовой дневник: null = не загружен, [] = пусто
+  voicesLoading: false,
   // breathing
   bPhases: [], bPhaseIdx: 0, bCountdown: 0, bRound: 1, bRunning: false, bDone: false, bTimer: null,
   // text/guided
@@ -680,6 +683,7 @@ function render() {
 
   if (S.tab === 'home') startWave();
   if (S.tab === 'coach') { scrollCoach(); bindCoach(); }
+  if (S.tab === 'progress' && S.voices === null && !S.voicesLoading && TG_INIT) loadVoices();
 }
 
 function renderNav() {
@@ -1140,6 +1144,7 @@ async function startVoiceRec() {
     const blob = new Blob(mediaChunks, { type: mediaChunks[0]?.type || 'audio/webm' });
     if (S.vUrl) URL.revokeObjectURL(S.vUrl);
     S.vUrl = URL.createObjectURL(blob);
+    S.vBlob = blob;
     S.vHasRec = true;
     mediaStream?.getTracks().forEach(t => t.stop());
     render();
@@ -1162,13 +1167,46 @@ function stopVoiceRec() {
 }
 function resetVoice() {
   clearInterval(S.vTimer); S.vTimer = null;
-  S.vRecording = false; S.vHasRec = false;
+  S.vRecording = false; S.vHasRec = false; S.vBlob = null;
   if (S.vUrl) { URL.revokeObjectURL(S.vUrl); S.vUrl = null; }
+}
+
+// ── Загрузка записей в голосовой дневник (Supabase Storage через /api/voice) ──
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result).split(',')[1] || '');
+    r.onerror = reject;
+    r.readAsDataURL(blob);
+  });
+}
+async function uploadVoice(exId, phase, blob) {
+  if (!TG_INIT || !blob) return;
+  try {
+    const audio = await blobToBase64(blob);
+    if (!audio) return;
+    fetch('/api/voice', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ initData: TG_INIT, action:'upload', exId: exId || null, phase, mime: blob.type || 'audio/webm', audio }) }).catch(()=>{});
+    S.voices = null;   // обновить дневник при следующем заходе в Профиль
+  } catch (e) {}
+}
+async function loadVoices() {
+  if (!TG_INIT) { S.voices = []; return; }
+  S.voicesLoading = true;
+  try {
+    const res = await fetch('/api/voice', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ initData: TG_INIT, action:'list' }) });
+    S.voices = res.ok ? ((await res.json()).items || []) : [];
+  } catch (e) { S.voices = []; }
+  S.voicesLoading = false;
+  if (S.tab === 'progress') render();
 }
 
 function advanceRecord() {
   stopVoiceRec();
   const stage = S.flowStage;
+  const blob = S.vBlob;
+  if (blob) uploadVoice(S.exercise && S.exercise.id, stage === 'before' ? 'before' : 'after', blob);
   resetVoice();
   if (stage === 'before') {
     S.flowStage = 'exercise';
@@ -1332,7 +1370,7 @@ function bindOnboarding() {
   document.getElementById('rec-mic')?.addEventListener('click', () => { S.vRecording ? stopVoiceRec() : startVoiceRec(); });
   document.getElementById('rec-play')?.addEventListener('click', () => { if (S.vUrl) new Audio(S.vUrl).play(); });
   document.getElementById('rec-redo')?.addEventListener('click', () => { resetVoice(); render(); });
-  document.getElementById('onb-voice-next')?.addEventListener('click', () => { stopVoiceRec(); generatePlan(); });
+  document.getElementById('onb-voice-next')?.addEventListener('click', () => { stopVoiceRec(); if (S.vBlob) uploadVoice('baseline', 'baseline', S.vBlob); resetVoice(); generatePlan(); });
   document.getElementById('onb-finish')?.addEventListener('click', finishOnboarding);
 }
 
@@ -1426,6 +1464,30 @@ async function loadProfile() {
 // ═══════════════════════════════════════════
 // PROGRESS SCREEN
 // ═══════════════════════════════════════════
+function renderVoiceJournal() {
+  if (!TG_INIT) return `<div class="card" style="margin-bottom:16px"><p class="lbl">🎙 Голосовой дневник</p><p style="color:var(--muted);font-size:13px;margin-top:4px">Доступен в приложении Telegram — там записи «до/после» сохраняются и можно сравнить прогресс.</p></div>`;
+  let inner;
+  if (S.voices === null || S.voicesLoading) {
+    inner = `<p style="color:var(--muted);font-size:13px;margin-top:4px">Загружаю записи…</p>`;
+  } else if (!S.voices.length) {
+    inner = `<p style="color:var(--muted);font-size:13px;margin-top:4px">Пройди упражнение с записью голоса — здесь появятся твои «до/после», и ты услышишь, как меняется голос.</p>`;
+  } else {
+    const phLabel = { before:'до', after:'после', baseline:'старт' };
+    inner = `<div class="gap-10" style="margin-top:10px">` + S.voices.map(v => {
+      const ex = ALL_EX.find(e => e.id === v.exId);
+      const title = v.phase === 'baseline' ? 'Голос на старте' : (ex ? ex.title : 'Запись');
+      const ph = phLabel[v.phase] || '';
+      let ds = ''; try { ds = new Date(v.created_at).toLocaleDateString('ru-RU', { day:'numeric', month:'short' }); } catch(e) {}
+      return `<div class="ex-card">
+        <div class="ex-ico" style="background:var(--card)">🎙</div>
+        <div class="ex-info"><div class="ex-title" style="font-size:14px">${title} <span style="color:var(--secondary);font-size:12px">· ${ph}</span></div><div class="ex-desc">${ds}</div></div>
+        <div class="ex-meta">${v.url ? `<button class="chat-send" data-voice="${v.url}" style="background:var(--card);border:1px solid var(--primary);color:var(--primary);width:42px;height:42px;font-size:16px">▶</button>` : ''}</div>
+      </div>`;
+    }).join('') + `</div>`;
+  }
+  return `<div class="card" style="margin-bottom:16px"><p class="lbl">🎙 Голосовой дневник</p>${inner}</div>`;
+}
+
 function renderProgress() {
   const s = S.stats;
   const lv = levelInfo();
@@ -1480,10 +1542,7 @@ function renderProgress() {
       </div>
     </div>
 
-    <div class="card" style="margin-bottom:16px">
-      <p class="lbl">🎙 Голосовой дневник</p>
-      <p style="color:var(--muted);font-size:13px;line-height:1.55;margin-top:4px">Записи «до/после» по каждому упражнению. Сравнение прогресса во времени — скоро.</p>
-    </div>
+    ${renderVoiceJournal()}
 
     <div class="card" style="margin-bottom:16px">
       <p class="lbl" style="margin-bottom:16px">Достижения · ${unlocked}/${achs.length}</p>
@@ -1793,6 +1852,9 @@ function bindGlobal() {
   // Paywall triggers (могут быть несколько на экране)
   document.querySelectorAll('[data-sub]').forEach(el =>
     el.addEventListener('click', () => showSubModal(el.dataset.sub || '')));
+  // Проигрывание записей голосового дневника
+  document.querySelectorAll('[data-voice]').forEach(el =>
+    el.addEventListener('click', () => { try { new Audio(el.dataset.voice).play(); } catch(e) {} }));
 }
 
 function bindEx() {
