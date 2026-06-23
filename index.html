@@ -329,32 +329,47 @@ const FREE_IDS = CATS.map(c => (EX[c.id]||[])[0] && EX[c.id][0].id).filter(Boole
 
 // AI-ролевые игры (Stage: сигнатурная фича). Claude играет роль собеседника.
 const ROLEPLAYS = [
-  { id:'self', icon:'👋', title:'Расскажи о себе', diff:'easy',
+  { id:'self', icon:'👋', title:'Расскажи о себе', diff:'easy', mode:'connect',
     name:'Марина', roleTitle:'на нетворкинге', face:'🙋‍♀️', faceBg:'#4ADE80',
     situation:'Лёгкое знакомство: тебя просят кратко и ярко представить себя.',
     role:'дружелюбный, но внимательно оценивающий человек на нетворкинг-встрече',
     opener:'Привет! Рад знакомству 🙂 Расскажите немного о себе — чем занимаетесь?' },
-  { id:'interview', icon:'💼', title:'Собеседование', diff:'medium',
+  { id:'interview', icon:'💼', title:'Собеседование', diff:'medium', mode:'persuade',
     name:'Игорь Петрович', roleTitle:'интервьюер', face:'🧐', faceBg:'#E85D43',
     situation:'Собеседование на желаемую позицию, каверзные вопросы.',
     role:'вежливый, но строгий интервьюер, который задаёт неудобные вопросы',
     opener:'Спасибо, что пришли. Начнём прямо: почему мы должны взять именно вас?' },
-  { id:'qa', icon:'🎤', title:'Вопрос из зала', diff:'medium',
+  { id:'qa', icon:'🎤', title:'Вопрос из зала', diff:'medium', mode:'persuade',
     name:'Скептик из зала', roleTitle:'слушатель', face:'🤨', faceBg:'#FF9F45',
     situation:'Ты только что выступил. Из зала — острый, скептичный вопрос.',
     role:'скептичный слушатель в зале, который сомневается в твоих словах и давит',
     opener:'Извините, но мне ваши аргументы не кажутся убедительными. Можете обосновать?' },
-  { id:'negotiation', icon:'🤝', title:'Жёсткий клиент', diff:'hard',
+  { id:'negotiation', icon:'🤝', title:'Жёсткий клиент', diff:'hard', mode:'persuade',
     name:'Виктор', roleTitle:'клиент', face:'😠', faceBg:'#C9492F', recurring:true,
     situation:'Переговоры об условиях сделки. Оппонент жёстко возражает по цене.',
     role:'жёсткий деловой партнёр Виктор, давит по цене и ищет слабые места',
     opener:'Предложение неплохое, но цена завышена вдвое. Убедите меня, иначе мы не договоримся.' },
-  { id:'raise', icon:'📈', title:'Просьба о повышении', diff:'hard',
+  { id:'raise', icon:'📈', title:'Просьба о повышении', diff:'hard', mode:'persuade',
     name:'Босс', roleTitle:'руководитель', face:'😐', faceBg:'#FFB199',
     situation:'Разговор с руководителем о повышении зарплаты.',
     role:'занятой руководитель, поначалу скептичен, но готов слушать сильные аргументы',
     opener:'У меня есть пять минут. Вы хотели обсудить зарплату — слушаю вас.' },
-  { id:'board', icon:'🏛️', title:'Питч совету директоров', diff:'hard',
+  { id:'friend', icon:'🫂', title:'Друг в кризисе', diff:'medium', mode:'support',
+    name:'Костя', roleTitle:'друг', face:'😞', faceBg:'#FFB199',
+    situation:'Близкому другу тяжело — он хочет выговориться. Твоя цель — поддержать, а не решать за него.',
+    role:'друг Костя, которому плохо: его сократили, он выгорел; делится болью и НЕ ждёт советов',
+    opener:'Слушай… не знаю, кому ещё сказать. Меня сократили. Чувствую себя полным неудачником.' },
+  { id:'partner', icon:'💗', title:'Разговор с близким', diff:'hard', mode:'difficult',
+    name:'Аня', roleTitle:'близкий человек', face:'😔', faceBg:'#FF7A5C',
+    situation:'Вы отдалились. Ты хочешь обсудить это, не поссорившись, — цель понять друг друга.',
+    role:'близкий человек Аня: обижена и насторожена; смягчается от тепла и слушания, закрывается от упрёков',
+    opener:'Ты хотел поговорить? Давай. Только опять не начинай с того, что я во всём виновата.' },
+  { id:'date', icon:'☕', title:'Первое свидание', diff:'medium', mode:'connect',
+    name:'Даша', roleTitle:'на свидании', face:'🙂', faceBg:'#4ADE80',
+    situation:'Первое свидание. Цель — расположить к себе и наладить живой, тёплый контакт.',
+    role:'человек на первом свидании: раскрывается при искреннем интересе и тепле, скучает от односложности и эгоцентризма',
+    opener:'Привет 🙂 Ну вот, неловкое начало позади. Расскажи — ты вообще как тут оказался?' },
+  { id:'board', icon:'🏛️', title:'Питч совету директоров', diff:'hard', mode:'persuade',
     situation:'Ты презентуешь свой продукт совету компании. Их трое, у каждого свой интерес — нужно убедить всех.',
     personas:[
       { id:'cfo',  name:'Тамара',  role:'финдиректор', face:'💰', faceBg:'#FF9F45', agenda:'думает о деньгах: ROI, окупаемость, бюджет; давит на цифры и риски затрат' },
@@ -364,6 +379,14 @@ const ROLEPLAYS = [
     opener:{ speaker:'proc', text:'Здравствуйте. Я Нил, отвечаю за закупки. У нас плотный график — почему мы должны выбрать именно вас?' } },
 ];
 function canDoRoleplay(id) { return hasFullAccess() || id === ROLEPLAYS[0].id; }
+// Режимы разговора: меняют поведение собеседника и метрики разбора
+const RP_MODES = {
+  persuade:  { emoji:'⚔️', goal:'Добиться своего, сохранив отношения' },
+  difficult: { emoji:'💬', goal:'Понять друг друга и сохранить связь' },
+  connect:   { emoji:'🤝', goal:'Расположить к себе и наладить контакт' },
+  support:   { emoji:'🫂', goal:'Поддержать — чтобы стало легче' },
+};
+function rpMode(sc) { return RP_MODES[sc && sc.mode] || RP_MODES.persuade; }
 
 // ожидаемый результат и срок по категории (для экрана «Объяснение»)
 const RESULT_BY_CAT = {
@@ -1769,7 +1792,7 @@ function renderRoleplayList() {
         <div style="flex:1;min-width:0">
           <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;opacity:.85">Под тебя · AI</div>
           <div style="font-size:18px;font-weight:800;margin-top:2px">Твоя ситуация</div>
-          <div style="font-size:13px;opacity:.88;margin-top:2px">Опиши свой реальный разговор — соберём спарринг под него</div>
+          <div style="font-size:13px;opacity:.88;margin-top:2px">Опиши свой реальный разговор — соберём разговор под него</div>
         </div>
       </div>
     </div>
@@ -1823,10 +1846,10 @@ function renderRpBuild() {
     <div class="ex-body">
       <div class="rec-badge" style="margin:6px auto 0">✨</div>
       <h2 style="font-size:21px;font-weight:800;text-align:center;margin:14px 0 6px">Опиши свой разговор</h2>
-      <p style="color:var(--muted);font-size:14px;line-height:1.55;text-align:center;margin-bottom:16px">Кто собеседник, о чём разговор и что в нём сложного. Алмат соберёт спарринг — и можно репетировать.</p>
+      <p style="color:var(--muted);font-size:14px;line-height:1.55;text-align:center;margin-bottom:16px">Кто собеседник, о чём разговор и что в нём сложного. Алмат соберёт разговор — и можно репетировать.</p>
       <textarea id="build-input" class="chat-inp" style="width:100%;min-height:120px;resize:none;line-height:1.5;padding:14px" placeholder="Например: завтра прошу повышение у начальника. Он скуповат, любит конкретные цифры и часто перебивает."></textarea>
       ${b.error ? `<p style="color:#EF4444;font-size:13px;margin-top:10px;text-align:center">Не получилось собрать — попробуй ещё раз или опиши подробнее.</p>` : ''}
-      <div class="mt"><button class="btn btn-p" id="build-go">Собрать спарринг →</button></div>
+      <div class="mt"><button class="btn btn-p" id="build-go">Собрать разговор →</button></div>
       <button class="btn" style="background:none;color:var(--muted);margin-top:6px" id="rp-close-2">Назад</button>
     </div>
   </div>`;
@@ -1855,6 +1878,7 @@ async function buildScenario(description) {
     situation: data.situation || description,
     role: p.agenda || p.role || 'собеседник в этой ситуации',
     opener: data.opener,
+    mode: ['persuade','difficult','connect','support'].includes(data.mode) ? data.mode : 'persuade',
   };
   S.rpBuild = null;
   openRoleplay(sc, false);
@@ -1876,6 +1900,7 @@ function renderRpIntro() {
     <div class="call-avatar" style="width:90px;height:90px"><div class="face" style="font-size:42px;${sc.faceBg?`background:${sc.faceBg}2A`:''}">${sc.face||sc.icon}</div></div>
     <h2 style="font-size:22px;font-weight:800;margin:16px 0 4px">${sc.title}</h2>
     <p style="color:var(--muted);font-size:14px;line-height:1.6;max-width:320px">${sc.situation}</p>
+    <p style="color:var(--secondary);font-size:13px;font-weight:700;margin-top:10px">${rpMode(sc).emoji} Цель: ${rpMode(sc).goal}</p>
     <div class="card" style="margin-top:16px;max-width:340px;text-align:left;width:100%">
       <p class="lbl">🎭 ${sc.personas ? 'Участники' : 'С кем говоришь'}</p>
       ${sc.personas
@@ -1942,11 +1967,9 @@ function renderRpFeedback() {
     <div style="text-align:center;font-size:46px">${r.outcomeEmoji}</div>
     <h1 style="font-size:22px;font-weight:900;text-align:center;margin:8px 0 2px">${r.outcome}</h1>
     <p style="text-align:center;color:var(--muted);font-size:13px;margin-bottom:16px">${rp.sc.title} · +${XP_PER_STEP} XP</p>
-    ${r.scores ? `<div class="card" style="margin-bottom:14px">
+    ${Array.isArray(r.scores) && r.scores.length ? `<div class="card" style="margin-bottom:14px">
       <p class="lbl" style="margin-bottom:12px">Оценка разговора</p>
-      ${bar('Ясность', Math.round(r.scores.clarity||0))}
-      ${bar('Уверенность', Math.round(r.scores.confidence||0))}
-      ${bar('Убедительность', Math.round(r.scores.persuasion||0))}
+      ${r.scores.map(s => bar(s.label, Math.round(s.value||0))).join('')}
     </div>` : ''}
     <div class="card" style="margin-bottom:16px">
       <p class="lbl" style="margin-bottom:6px">🎙 Разбор от Алмата</p>
@@ -2103,6 +2126,7 @@ function rpScenario(rp) {
     situation: sc.situation,
     role: sc.role || (sc.personas ? 'участники делового совещания' : ''),
     opener: sc.personas ? (sc.opener && sc.opener.text) : sc.opener,
+    mode: sc.mode || 'persuade',
   };
   if (sc.personas) o.personas = sc.personas.map(p => ({ id:p.id, name:p.name, role:p.role, agenda:p.agenda }));
   return o;
@@ -2213,7 +2237,7 @@ async function finishRoleplay() {
     rp.result = {
       outcome: data.outcome || 'Разговор завершён',
       outcomeEmoji: data.outcomeEmoji || '✅',
-      scores: (data.scores && typeof data.scores === 'object') ? data.scores : null,
+      scores: Array.isArray(data.scores) ? data.scores : null,
       feedback: data.feedback || 'Не удалось получить разбор.',
     };
   } catch(e) {
