@@ -29,6 +29,16 @@ export default async function handler(req, res) {
   "scores": { "clarity": 0-100, "confidence": 0-100, "persuasion": 0-100 },
   "feedback": "Тёплый, но честный разбор на «ты»: 2 сильные стороны и 2 зоны роста с конкретным примером — КАК можно было переформулировать. 2–3 коротких абзаца, без markdown."
 }`;
+  } else if (Array.isArray(scenario.personas) && scenario.personas.length) {
+    // мульти-персонаж «совещание»
+    maxTokens = 400;
+    const list = scenario.personas.map(p => `- ${p.id} | ${p.name}, ${p.role}: ${p.agenda}`).join('\n');
+    system = `Ты ведёшь ролевое СОВЕЩАНИЕ в тренажёре общения Rezon. Ситуация: "${scenario.situation}".
+Участники со стороны собеседника, у каждого свой мотив:
+${list}
+Пользователь обращается к совещанию. Ответь ОТ ИМЕНИ ОДНОГО участника — того, кто естественнее всего среагирует с учётом своего мотива и последней реплики пользователя. Хорошо, когда инициативу перехватывают разные участники, а не один и тот же.
+Реплика короткая (1–3 предложения), строго в характере, по-русски; можно возражать и давить.
+Верни ТОЛЬКО валидный JSON без markdown: {"speaker":"<id участника>","text":"<реплика>"}`;
   } else {
     maxTokens = 350;
     system = `Ты играешь роль собеседника в тренажёре общения Rezon. Твоя роль: "${scenario.role}". Ситуация: "${scenario.situation}".
@@ -62,6 +72,13 @@ export default async function handler(req, res) {
       const s = text.indexOf('{'), e = text.lastIndexOf('}');
       if (s === -1 || e === -1) throw new Error('no json in feedback');
       return res.json(JSON.parse(text.slice(s, e + 1)));
+    }
+    if (Array.isArray(scenario.personas) && scenario.personas.length) {
+      const s = text.indexOf('{'), e = text.lastIndexOf('}');
+      if (s !== -1 && e !== -1) {
+        try { const o = JSON.parse(text.slice(s, e + 1)); return res.json({ speaker: o.speaker, text: o.text || text }); } catch (_) {}
+      }
+      return res.json({ text });   // фолбэк без speaker
     }
     res.json({ text });
   } catch (error) {

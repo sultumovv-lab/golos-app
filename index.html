@@ -224,6 +224,15 @@
     .call-btn.mic { width: 78px; height: 78px; font-size: 28px; background: var(--grad); color: #fff; box-shadow: 0 8px 24px rgba(232,93,67,.35); position: relative; }
     .call-btn.mic.on { background: #EF4444; }
     .call-btn.end { width: 60px; height: 60px; font-size: 24px; background: #EF4444; color: #fff; }
+    /* мульти-персонаж «совещание» */
+    .meet-grid { width: 100%; max-width: 380px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 0 16px; }
+    .meet-tile { position: relative; aspect-ratio: 1; border-radius: 16px; background: var(--card); border: 2px solid var(--border); display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; transition: border-color .2s, box-shadow .2s; }
+    .meet-tile.active { border-color: var(--primary); box-shadow: 0 0 22px rgba(232,93,67,.4); }
+    .meet-tile .mface { width: 56px; height: 56px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 30px; background: var(--bg); }
+    .meet-tile .mname { font-size: 13px; font-weight: 700; margin-top: 8px; }
+    .meet-tile .mrole { font-size: 10px; color: var(--muted); }
+    .meet-tile.user video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+    .meet-badge { position: absolute; bottom: 6px; left: 6px; background: rgba(0,0,0,.5); padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; color: #fff; }
   </style>
 </head>
 <body>
@@ -345,6 +354,14 @@ const ROLEPLAYS = [
     situation:'Разговор с руководителем о повышении зарплаты.',
     role:'занятой руководитель, поначалу скептичен, но готов слушать сильные аргументы',
     opener:'У меня есть пять минут. Вы хотели обсудить зарплату — слушаю вас.' },
+  { id:'board', icon:'🏛️', title:'Питч совету директоров', diff:'hard',
+    situation:'Ты презентуешь свой продукт совету компании. Их трое, у каждого свой интерес — нужно убедить всех.',
+    personas:[
+      { id:'cfo',  name:'Тамара',  role:'финдиректор', face:'💰', faceBg:'#FF9F45', agenda:'думает о деньгах: ROI, окупаемость, бюджет; давит на цифры и риски затрат' },
+      { id:'prod', name:'Лесли',   role:'глава продукта', face:'🧩', faceBg:'#4ADE80', agenda:'интересует функциональность и как продукт впишется в их экосистему' },
+      { id:'proc', name:'Нил',     role:'закупки', face:'📋', faceBg:'#E85D43', agenda:'риски поставщика: гарантии, поддержка, условия договора, что если не сработает' },
+    ],
+    opener:{ speaker:'proc', text:'Здравствуйте. Я Нил, отвечаю за закупки. У нас плотный график — почему мы должны выбрать именно вас?' } },
 ];
 function canDoRoleplay(id) { return hasFullAccess() || id === ROLEPLAYS[0].id; }
 
@@ -1772,13 +1789,15 @@ function renderRpIntro() {
     <h2 style="font-size:22px;font-weight:800;margin:16px 0 4px">${sc.title}</h2>
     <p style="color:var(--muted);font-size:14px;line-height:1.6;max-width:320px">${sc.situation}</p>
     <div class="card" style="margin-top:16px;max-width:340px;text-align:left;width:100%">
-      <p class="lbl">🎭 С кем говоришь</p>
-      <p style="font-size:15px;font-weight:700;margin-bottom:2px">${sc.name||'Собеседник'} <span style="color:var(--muted);font-weight:400;font-size:13px">· ${sc.roleTitle||''}</span></p>
-      <p style="font-size:13px;color:var(--muted);line-height:1.5">${sc.role}</p>
+      <p class="lbl">🎭 ${sc.personas ? 'Участники' : 'С кем говоришь'}</p>
+      ${sc.personas
+        ? sc.personas.map(p=>`<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><span style="width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;background:${p.faceBg?p.faceBg+'2A':'var(--bg)'}">${p.face}</span><span style="font-size:14px"><b>${p.name}</b> <span style="color:var(--muted)">· ${p.role}</span></span></div>`).join('')
+        : `<p style="font-size:15px;font-weight:700;margin-bottom:2px">${sc.name||'Собеседник'} <span style="color:var(--muted);font-weight:400;font-size:13px">· ${sc.roleTitle||''}</span></p>
+      <p style="font-size:13px;color:var(--muted);line-height:1.5">${sc.role}</p>`}
     </div>
     <div class="card" style="margin-top:10px;max-width:340px;text-align:left;width:100%">
       <p class="lbl">📞 Как это работает</p>
-      <p style="font-size:13px;color:var(--muted);line-height:1.55">Это видеозвонок: включи камеру и микрофон, говори вслух — собеседник отвечает голосом. В конце Алмат разберёт, как ты держался.</p>
+      <p style="font-size:13px;color:var(--muted);line-height:1.55">${sc.personas ? 'Это видеозвонок-совещание: несколько участников, у каждого свой интерес. Говори вслух или текстом — отвечает тот, кто среагирует.' : 'Это видеозвонок: включи камеру и микрофон, говори вслух — собеседник отвечает голосом.'} В конце Алмат разберёт, как ты держался.</p>
     </div>
     <div class="mt" style="width:100%;max-width:340px"><button class="btn btn-p" id="rp-callstart">📞 Начать звонок</button></div>
     <button class="link" style="margin-top:12px" id="rp-textstart">Лучше текстом →</button>
@@ -1859,8 +1878,48 @@ function scrollRoleplay() { const el=document.getElementById('chat-msgs'); if(el
 // ── Видеозвонок (камера + голос). Аватар-заглушка; позже заменим на HeyGen LiveAvatar ──
 const CALL_STATUS = { connecting:'Соединение…', idle:'Нажми и говори', listening:'Слушаю вас…', thinking:'Думает…', speaking:'Алмат говорит…' };
 
+function renderRpCallMeeting() {
+  const rp = S.roleplay;
+  const lastAI = [...rp.msgs].reverse().find(m=>m.role==='assistant');
+  const activeId = lastAI ? lastAI.speaker : (rp.sc.opener && rp.sc.opener.speaker);
+  const activeP = rp.sc.personas.find(p=>p.id===activeId);
+  const status = CALL_STATUS[rp.callStatus] || 'Нажми и говори';
+  const userTurns = rp.msgs.filter(m=>m.role==='user').length;
+  const tiles = rp.sc.personas.map(p=>`
+    <div class="meet-tile ${p.id===activeId?'active':''}">
+      <div class="mface" style="${p.faceBg?`background:${p.faceBg}2A`:''}">${p.face}</div>
+      <div class="mname">${p.name}</div>
+      <div class="mrole">${p.role}</div>
+    </div>`).join('');
+  const userTile = `<div class="meet-tile user">${rp.stream && !rp.noCam ? `<video id="rp-self" autoplay muted playsinline></video>` : `<div class="mface">🙂</div><div class="mname">Вы</div>`}<div class="meet-badge">Вы</div></div>`;
+  return `
+  <div class="call-screen">
+    <div class="call-top">
+      <button class="close" id="rp-close" style="font-size:20px;width:auto">✕</button>
+      <div style="font-size:13px;color:var(--muted);font-weight:600">${rp.sc.icon} ${rp.sc.title}</div>
+      <div style="width:28px"></div>
+    </div>
+    <div style="flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;width:100%">
+      <div class="meet-grid">${tiles}${userTile}</div>
+      <div class="call-status" id="call-status" style="margin-top:16px">${status}</div>
+      <div class="call-sub" id="call-sub" style="padding:0 24px">${lastAI ? `<b style="color:var(--secondary)">${activeP?activeP.name:''}:</b> ${lastAI.text}` : ''}</div>
+    </div>
+    <div class="call-textrow">
+      <input class="chat-inp" id="rp-input" placeholder="…или напиши ответ" autocomplete="off">
+      <button class="chat-send" id="rp-send">→</button>
+    </div>
+    <div class="call-controls">
+      <button class="call-btn mic ${rp.callStatus==='listening'?'on':''}" id="call-mic">${rp.callStatus==='listening'?'⏹':'🎤'}</button>
+    </div>
+    ${userTurns>=1
+      ? `<div style="width:100%;max-width:360px;padding:0 20px calc(20px + env(safe-area-inset-bottom))"><button class="btn btn-g" id="call-end">Завершить и получить разбор ✓</button></div>`
+      : `<div style="padding-bottom:calc(20px + env(safe-area-inset-bottom));color:var(--dim);font-size:12px">Ответь хотя бы раз для разбора</div>`}
+  </div>`;
+}
+
 function renderRpCall() {
   const rp = S.roleplay;
+  if (rp.sc.personas) return renderRpCallMeeting();
   const lastAI = [...rp.msgs].reverse().find(m=>m.role==='assistant');
   const status = CALL_STATUS[rp.callStatus] || 'Нажми и говори';
   const userTurns = rp.msgs.filter(m=>m.role==='user').length;
@@ -1949,17 +2008,39 @@ function callListen() {
   S.rpRecording = true; rp.callStatus = 'listening'; updateCallUI();
 }
 
+// payload сценария для API (для совещания добавляет personas + опенер-текст)
+function rpScenario(rp) {
+  const sc = rp.sc;
+  const o = {
+    situation: sc.situation,
+    role: sc.role || (sc.personas ? 'участники делового совещания' : ''),
+    opener: sc.personas ? (sc.opener && sc.opener.text) : sc.opener,
+  };
+  if (sc.personas) o.personas = sc.personas.map(p => ({ id:p.id, name:p.name, role:p.role, agenda:p.agenda }));
+  return o;
+}
+// история для API (реплики участников тегируем именем — для непрерывности совещания)
+function rpApiMessages(rp) {
+  return rp.msgs.slice(1).map(m => {
+    if (m.role === 'assistant' && rp.sc.personas && m.speaker) {
+      const p = rp.sc.personas.find(x => x.id === m.speaker);
+      return { role:'assistant', content: (p ? `[${p.name}]: ` : '') + m.text };
+    }
+    return { role:m.role, content:m.text };
+  });
+}
+function rpSpeakerName(rp, id) { const p = rp.sc.personas && rp.sc.personas.find(x => x.id === id); return p ? p.name : ''; }
+
 async function callSend(text) {
   text = (text||'').trim(); const rp = S.roleplay; if (!text || !rp) return;
   rp.msgs.push({ role:'user', text });
   rp.callStatus = 'thinking'; updateCallUI();
   try {
-    const apiMsgs = rp.msgs.slice(1).map(m=>({ role:m.role, content:m.text }));
     const res = await fetch('/api/roleplay', { method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ scenario:{ situation:rp.sc.situation, role:rp.sc.role, opener:rp.sc.opener }, messages:apiMsgs, phase:'converse' }) });
+      body: JSON.stringify({ scenario: rpScenario(rp), messages: rpApiMessages(rp), phase:'converse' }) });
     if (!res.ok) throw new Error('http');
     const data = await res.json();
-    rp.msgs.push({ role:'assistant', text:data.text || '…' });
+    rp.msgs.push({ role:'assistant', text:data.text || '…', speaker:data.speaker });
     speakAI(data.text || '');
   } catch(e) {
     rp.msgs.push({ role:'assistant', text:'(связь прервалась — попробуй ещё раз)' });
@@ -1969,6 +2050,7 @@ async function callSend(text) {
 
 function updateCallUI() {
   const rp = S.roleplay; if (!rp || rp.phase !== 'call') return;
+  if (rp.sc.personas) { render(); return; }   // совещание — перерисовываем всю сетку
   const st = document.getElementById('call-status'); if (st) st.textContent = CALL_STATUS[rp.callStatus] || '';
   const av = document.getElementById('call-avatar'); if (av) av.classList.toggle('speaking', rp.callStatus==='speaking');
   const mic = document.getElementById('call-mic'); if (mic) { mic.classList.toggle('on', rp.callStatus==='listening'); mic.textContent = rp.callStatus==='listening' ? '⏹' : '🎤'; }
@@ -1992,7 +2074,9 @@ function openRoleplay(sc, fromPlan=false) {
   if (!canDoRoleplay(sc.id)) { showSubModal('exercise'); return; }
   if (energyBlocked()) { showSubModal('energy'); return; }
   clearTimers();
-  S.roleplay = { sc, msgs:[{ role:'assistant', text:sc.opener }], phase:'intro', loading:false, feedback:null, fromPlan };
+  const openerText = sc.personas ? (sc.opener && sc.opener.text) : sc.opener;
+  const openerSpeaker = sc.personas ? (sc.opener && sc.opener.speaker) : undefined;
+  S.roleplay = { sc, msgs:[{ role:'assistant', text:openerText, speaker:openerSpeaker }], phase:'intro', loading:false, feedback:null, fromPlan };
   tg.BackButton.show();
   render();
 }
@@ -2013,14 +2097,13 @@ async function sendRoleplay(text) {
   rp.msgs.push({ role:'user', text });
   rp.loading = true; render();
   try {
-    const apiMsgs = rp.msgs.slice(1).map(m=>({ role:m.role, content:m.text }));
     const res = await fetch('/api/roleplay', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ scenario:{ situation:rp.sc.situation, role:rp.sc.role, opener:rp.sc.opener }, messages:apiMsgs, phase:'converse' }),
+      body: JSON.stringify({ scenario: rpScenario(rp), messages: rpApiMessages(rp), phase:'converse' }),
     });
     if (!res.ok) throw new Error('http');
     const data = await res.json();
-    rp.msgs.push({ role:'assistant', text:data.text || '…' });
+    rp.msgs.push({ role:'assistant', text:data.text || '…', speaker:data.speaker });
   } catch(e) {
     rp.msgs.push({ role:'assistant', text:'⚠️ Не удалось ответить (проверь связь). Попробуй ещё раз или заверши разбор.' });
   }
@@ -2031,11 +2114,11 @@ async function finishRoleplay() {
   const rp = S.roleplay; if (!rp) return;
   stopCallMedia();
   rp.phase = 'loading'; render();
-  const transcript = rp.msgs.map(m=>(m.role==='user'?'Я: ':'Собеседник: ')+m.text).join('\n');
+  const transcript = rp.msgs.map(m => m.role==='user' ? 'Я: '+m.text : ((rpSpeakerName(rp, m.speaker)||'Собеседник')+': '+m.text)).join('\n');
   try {
     const res = await fetch('/api/roleplay', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ scenario:{ situation:rp.sc.situation, role:rp.sc.role, opener:rp.sc.opener }, messages:[{ role:'user', content:'Вот диалог тренировки:\n'+transcript+'\n\nРазбери, как я (реплики «Я:») общался.' }], phase:'feedback' }),
+      body: JSON.stringify({ scenario: rpScenario(rp), messages:[{ role:'user', content:'Вот диалог тренировки:\n'+transcript+'\n\nРазбери, как я (реплики «Я:») общался.' }], phase:'feedback' }),
     });
     if (!res.ok) throw new Error('http');
     const data = await res.json();
