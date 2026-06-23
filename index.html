@@ -1130,18 +1130,25 @@ function renderFinish() {
 }
 
 // ── Voice recording (MediaRecorder) ──
-let mediaRec = null, mediaChunks = [], mediaStream = null;
+let mediaRec = null, mediaChunks = [], mediaStream = null, journalAudio = null;
 async function startVoiceRec() {
   if (!navigator.mediaDevices?.getUserMedia) { alert('Запись недоступна в этом окружении. Можно пропустить.'); return; }
   try {
     mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
   } catch (e) { alert('Нет доступа к микрофону. Можно пропустить запись.'); return; }
   mediaChunks = [];
-  try { mediaRec = new MediaRecorder(mediaStream); }
-  catch (e) { mediaRec = new MediaRecorder(mediaStream, { mimeType: 'audio/webm' }); }
+  // выбираем формат, который реально воспроизводится на устройстве (iOS → mp4/aac, Chrome → webm)
+  const recMime = (function(){
+    const cands = ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm'];
+    for (const c of cands) { try { if (window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(c)) return c; } catch (e) {} }
+    return '';
+  })();
+  try { mediaRec = recMime ? new MediaRecorder(mediaStream, { mimeType: recMime }) : new MediaRecorder(mediaStream); }
+  catch (e) { try { mediaRec = new MediaRecorder(mediaStream); } catch (e2) { alert('Запись не поддерживается в этом окружении.'); mediaStream.getTracks().forEach(t=>t.stop()); return; } }
+  const blobType = mediaRec.mimeType || recMime || 'audio/webm';
   mediaRec.ondataavailable = e => { if (e.data && e.data.size) mediaChunks.push(e.data); };
   mediaRec.onstop = () => {
-    const blob = new Blob(mediaChunks, { type: mediaChunks[0]?.type || 'audio/webm' });
+    const blob = new Blob(mediaChunks, { type: blobType });
     if (S.vUrl) URL.revokeObjectURL(S.vUrl);
     S.vUrl = URL.createObjectURL(blob);
     S.vBlob = blob;
@@ -1185,8 +1192,10 @@ async function uploadVoice(exId, phase, blob) {
   try {
     const audio = await blobToBase64(blob);
     if (!audio) return;
+    const mime = blob.type || 'audio/webm';
+    const ext = mime.includes('mp4') || mime.includes('mpeg') ? 'm4a' : 'webm';
     fetch('/api/voice', { method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ initData: TG_INIT, action:'upload', exId: exId || null, phase, mime: blob.type || 'audio/webm', audio }) }).catch(()=>{});
+      body: JSON.stringify({ initData: TG_INIT, action:'upload', exId: exId || null, phase, mime, ext, audio }) }).catch(()=>{});
     S.voices = null;   // обновить дневник при следующем заходе в Профиль
   } catch (e) {}
 }
@@ -1854,7 +1863,14 @@ function bindGlobal() {
     el.addEventListener('click', () => showSubModal(el.dataset.sub || '')));
   // Проигрывание записей голосового дневника
   document.querySelectorAll('[data-voice]').forEach(el =>
-    el.addEventListener('click', () => { try { new Audio(el.dataset.voice).play(); } catch(e) {} }));
+    el.addEventListener('click', () => {
+      try {
+        if (journalAudio) { journalAudio.pause(); journalAudio = null; }
+        journalAudio = new Audio(el.dataset.voice);
+        journalAudio.play().catch(() => alert('Не получилось воспроизвести запись здесь. Попробуй обновить приложение или послушать позже.'));
+        tg.HapticFeedback.impactOccurred('light');
+      } catch (e) {}
+    }));
 }
 
 function bindEx() {

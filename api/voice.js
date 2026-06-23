@@ -36,7 +36,7 @@ export default async function handler(req, res) {
     return res.status(501).json({ error: 'storage not configured' });
   }
 
-  const { initData, action, exId, phase, audio, mime } = req.body || {};
+  const { initData, action, exId, phase, audio, mime, ext } = req.body || {};
   const user = verifyInitData(initData, process.env.BOT_TOKEN);
   if (!user || !user.id) return res.status(401).json({ error: 'unauthorized' });
   const base = process.env.SUPABASE_URL;
@@ -47,7 +47,8 @@ export default async function handler(req, res) {
       const buffer = Buffer.from(audio, 'base64');
       if (buffer.length > 3_000_000) return res.status(413).json({ error: 'too large' });
       const safePhase = ['before', 'after', 'baseline'].includes(phase) ? phase : 'rec';
-      const path = `${user.id}/${Date.now()}_${(exId || 'x').replace(/[^\w]/g, '')}_${safePhase}.webm`;
+      const safeExt = ['webm', 'm4a', 'mp4', 'mpeg'].includes(ext) ? ext : 'webm';
+      const path = `${user.id}/${Date.now()}_${(exId || 'x').replace(/[^\w]/g, '')}_${safePhase}.${safeExt}`;
 
       const up = await fetch(`${base}/storage/v1/object/${BUCKET}/${path}`, {
         method: 'POST',
