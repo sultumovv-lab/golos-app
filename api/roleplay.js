@@ -18,15 +18,17 @@ export default async function handler(req, res) {
 
   let system, maxTokens;
   if (phase === 'feedback') {
-    maxTokens = 700;
+    maxTokens = 800;
     system = `Ты — Алмат, коуч по голосу и коммуникации в приложении Rezon. Пользователь только что прошёл ролевую тренировку.
 Ситуация: "${scenario.situation}". Ты играл роль: "${scenario.role}".
-Разбери, КАК пользователь общался по тексту его реплик: содержание, уверенность, структура мысли, убедительность, работа с возражениями.
-Дай тёплый, но честный разбор по-русски:
-— 2 сильные стороны (что реально получилось);
-— 2 зоны роста (с конкретным примером, КАК можно было переформулировать);
-— 1 короткий совет на следующий раз.
-3–4 коротких абзаца, на «ты», без markdown-заголовков, без воды.`;
+Оцени, КАК пользователь общался по тексту его реплик: содержание, уверенность, структура мысли, убедительность, работа с возражениями.
+Верни ТОЛЬКО валидный JSON (без markdown, без текста вокруг) строго такой формы:
+{
+  "outcome": "Короткий вердикт исхода разговора от лица ситуации, по-русски (например: «Совет почти убеждён», «Тебя пока не взяли», «Сделка под вопросом», «Произвёл сильное впечатление»)",
+  "outcomeEmoji": "один эмодзи: ✅ если в целом успех, ⚠️ если спорно, ❌ если не убедил",
+  "scores": { "clarity": 0-100, "confidence": 0-100, "persuasion": 0-100 },
+  "feedback": "Тёплый, но честный разбор на «ты»: 2 сильные стороны и 2 зоны роста с конкретным примером — КАК можно было переформулировать. 2–3 коротких абзаца, без markdown."
+}`;
   } else {
     maxTokens = 350;
     system = `Ты играешь роль собеседника в тренажёре общения Rezon. Твоя роль: "${scenario.role}". Ситуация: "${scenario.situation}".
@@ -56,6 +58,11 @@ export default async function handler(req, res) {
     const data = await response.json();
     const text = data?.content?.[0]?.text;
     if (!text) throw new Error('empty response');
+    if (phase === 'feedback') {
+      const s = text.indexOf('{'), e = text.lastIndexOf('}');
+      if (s === -1 || e === -1) throw new Error('no json in feedback');
+      return res.json(JSON.parse(text.slice(s, e + 1)));
+    }
     res.json({ text });
   } catch (error) {
     console.error('Roleplay error:', error);

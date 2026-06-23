@@ -321,22 +321,27 @@ const FREE_IDS = CATS.map(c => (EX[c.id]||[])[0] && EX[c.id][0].id).filter(Boole
 // AI-ролевые игры (Stage: сигнатурная фича). Claude играет роль собеседника.
 const ROLEPLAYS = [
   { id:'self', icon:'👋', title:'Расскажи о себе', diff:'easy',
+    name:'Марина', roleTitle:'на нетворкинге', face:'🙋‍♀️', faceBg:'#4ADE80',
     situation:'Лёгкое знакомство: тебя просят кратко и ярко представить себя.',
     role:'дружелюбный, но внимательно оценивающий человек на нетворкинг-встрече',
     opener:'Привет! Рад знакомству 🙂 Расскажите немного о себе — чем занимаетесь?' },
   { id:'interview', icon:'💼', title:'Собеседование', diff:'medium',
+    name:'Игорь Петрович', roleTitle:'интервьюер', face:'🧐', faceBg:'#E85D43',
     situation:'Собеседование на желаемую позицию, каверзные вопросы.',
     role:'вежливый, но строгий интервьюер, который задаёт неудобные вопросы',
     opener:'Спасибо, что пришли. Начнём прямо: почему мы должны взять именно вас?' },
   { id:'qa', icon:'🎤', title:'Вопрос из зала', diff:'medium',
+    name:'Скептик из зала', roleTitle:'слушатель', face:'🤨', faceBg:'#FF9F45',
     situation:'Ты только что выступил. Из зала — острый, скептичный вопрос.',
     role:'скептичный слушатель в зале, который сомневается в твоих словах и давит',
     opener:'Извините, но мне ваши аргументы не кажутся убедительными. Можете обосновать?' },
-  { id:'negotiation', icon:'🤝', title:'Переговоры', diff:'hard',
+  { id:'negotiation', icon:'🤝', title:'Жёсткий клиент', diff:'hard',
+    name:'Виктор', roleTitle:'клиент', face:'😠', faceBg:'#C9492F', recurring:true,
     situation:'Переговоры об условиях сделки. Оппонент жёстко возражает по цене.',
-    role:'жёсткий деловой партнёр, давит по цене и ищет слабые места',
+    role:'жёсткий деловой партнёр Виктор, давит по цене и ищет слабые места',
     opener:'Предложение неплохое, но цена завышена вдвое. Убедите меня, иначе мы не договоримся.' },
   { id:'raise', icon:'📈', title:'Просьба о повышении', diff:'hard',
+    name:'Босс', roleTitle:'руководитель', face:'😐', faceBg:'#FFB199',
     situation:'Разговор с руководителем о повышении зарплаты.',
     role:'занятой руководитель, поначалу скептичен, но готов слушать сильные аргументы',
     opener:'У меня есть пять минут. Вы хотели обсудить зарплату — слушаю вас.' },
@@ -1763,12 +1768,13 @@ function renderRpIntro() {
   const sc = S.roleplay.sc;
   return `
   <div class="ex-screen"><div class="ex-body" style="justify-content:center;text-align:center;align-items:center">
-    <div class="avatar-ring" style="width:80px;height:80px"><div class="avatar-face" style="font-size:36px">${sc.icon}</div></div>
-    <h2 style="font-size:22px;font-weight:800;margin:18px 0 6px">${sc.title}</h2>
+    <div class="call-avatar" style="width:90px;height:90px"><div class="face" style="font-size:42px;${sc.faceBg?`background:${sc.faceBg}2A`:''}">${sc.face||sc.icon}</div></div>
+    <h2 style="font-size:22px;font-weight:800;margin:16px 0 4px">${sc.title}</h2>
     <p style="color:var(--muted);font-size:14px;line-height:1.6;max-width:320px">${sc.situation}</p>
     <div class="card" style="margin-top:16px;max-width:340px;text-align:left;width:100%">
       <p class="lbl">🎭 С кем говоришь</p>
-      <p style="font-size:14px;line-height:1.55">${sc.role}</p>
+      <p style="font-size:15px;font-weight:700;margin-bottom:2px">${sc.name||'Собеседник'} <span style="color:var(--muted);font-weight:400;font-size:13px">· ${sc.roleTitle||''}</span></p>
+      <p style="font-size:13px;color:var(--muted);line-height:1.5">${sc.role}</p>
     </div>
     <div class="card" style="margin-top:10px;max-width:340px;text-align:left;width:100%">
       <p class="lbl">📞 Как это работает</p>
@@ -1818,12 +1824,27 @@ function renderRpLoading() {
 
 function renderRpFeedback() {
   const rp = S.roleplay;
+  const r = rp.result || { outcome:'Разговор завершён', outcomeEmoji:'✅', scores:null, feedback:'' };
+  const bar = (label, val) => `
+    <div style="margin-bottom:11px">
+      <div class="row-between" style="margin-bottom:5px"><span style="font-size:13px">${label}</span><span style="font-size:13px;font-weight:800;color:var(--secondary)">${val}</span></div>
+      <div class="progress-bar" style="margin:0"><div class="progress-fill" style="width:${val}%;background:var(--grad)"></div></div>
+    </div>`;
   return `
-  <div class="ex-screen"><div class="ex-body" style="padding-top:46px">
-    <div style="text-align:center"><div class="rec-badge" style="margin:0 auto">🎭</div></div>
-    <h1 style="font-size:23px;font-weight:900;text-align:center;margin:12px 0 4px">Разбор от Алмата</h1>
+  <div class="ex-screen"><div class="ex-body" style="padding-top:44px">
+    <div style="text-align:center;font-size:46px">${r.outcomeEmoji}</div>
+    <h1 style="font-size:22px;font-weight:900;text-align:center;margin:8px 0 2px">${r.outcome}</h1>
     <p style="text-align:center;color:var(--muted);font-size:13px;margin-bottom:16px">${rp.sc.title} · +${XP_PER_STEP} XP</p>
-    <div class="card" style="margin-bottom:16px"><p style="font-size:14px;line-height:1.65;white-space:pre-wrap">${rp.feedback}</p></div>
+    ${r.scores ? `<div class="card" style="margin-bottom:14px">
+      <p class="lbl" style="margin-bottom:12px">Оценка разговора</p>
+      ${bar('Ясность', Math.round(r.scores.clarity||0))}
+      ${bar('Уверенность', Math.round(r.scores.confidence||0))}
+      ${bar('Убедительность', Math.round(r.scores.persuasion||0))}
+    </div>` : ''}
+    <div class="card" style="margin-bottom:16px">
+      <p class="lbl" style="margin-bottom:6px">🎙 Разбор от Алмата</p>
+      <p style="font-size:14px;line-height:1.65;white-space:pre-wrap">${r.feedback}</p>
+    </div>
     <div class="mt">
       ${rp.fromPlan
         ? `<button class="btn btn-p" id="rp-done">Дальше →</button>`
@@ -1852,8 +1873,10 @@ function renderRpCall() {
     </div>
     ${rp.stream && !rp.noCam ? `<video id="rp-self" class="call-self" autoplay muted playsinline></video>` : `<div class="call-self-ph">🙂</div>`}
     <div class="call-stage">
-      <div class="call-avatar ${rp.callStatus==='speaking'?'speaking':''}" id="call-avatar"><div class="face">🎤</div></div>
-      <div class="call-status" id="call-status">${status}</div>
+      <div class="call-avatar ${rp.callStatus==='speaking'?'speaking':''}" id="call-avatar"><div class="face" style="${rp.sc.faceBg?`background:${rp.sc.faceBg}2A`:''}">${rp.sc.face||rp.sc.icon}</div></div>
+      <div style="margin-top:14px;font-weight:800;font-size:17px">${rp.sc.name||'Собеседник'}</div>
+      <div style="color:var(--muted);font-size:12px">${rp.sc.roleTitle||''}</div>
+      <div class="call-status" id="call-status" style="margin-top:14px">${status}</div>
       <div class="call-sub" id="call-sub">${lastAI ? lastAI.text : ''}</div>
     </div>
     <div class="call-textrow">
@@ -2016,9 +2039,15 @@ async function finishRoleplay() {
     });
     if (!res.ok) throw new Error('http');
     const data = await res.json();
-    rp.feedback = data.text || 'Не удалось получить разбор.';
+    rp.result = {
+      outcome: data.outcome || 'Разговор завершён',
+      outcomeEmoji: data.outcomeEmoji || '✅',
+      scores: (data.scores && typeof data.scores === 'object') ? data.scores : null,
+      feedback: data.feedback || 'Не удалось получить разбор.',
+    };
   } catch(e) {
-    rp.feedback = '⚠️ Не удалось получить разбор — проверь соединение и попробуй ещё раз.';
+    rp.result = { outcome:'Разговор завершён', outcomeEmoji:'⚠️', scores:null,
+      feedback:'⚠️ Не удалось получить разбор — проверь соединение и попробуй ещё раз.' };
   }
   completeExercise({ id:'rp:'+rp.sc.id, mins:3 });   // XP + стрик + история
   if (rp.fromPlan) { S.stats.planIdx = ((S.stats.planIdx||0) + 1) % planQueue().length; saveStats(); }
