@@ -53,6 +53,10 @@ export default async function handler(req, res) {
   "feedback": "Тёплый, но честный разбор на «ты»: 2 сильные стороны и 2 зоны роста с конкретным примером — КАК можно было сказать иначе под цель этого разговора. 2–3 коротких абзаца, без markdown."
 }
 В scores значения value — числа 0–100, label оставь ровно как заданы.`;
+  } else if (phase === 'coach') {
+    maxTokens = 160;
+    system = `Ты — Алмат, тренер «в углу ринга» в приложении Rezon. Идёт ролевой разговор, цель (режим): ${scenario.mode || 'persuade'}.
+Дай пользователю ОДИН короткий тактический совет для его СЛЕДУЮЩЕЙ реплики — что сделать прямо сейчас, чтобы продвинуться к цели разговора. 1–2 предложения, на «ты», конкретно, без вступлений и без готовых реплик за него.`;
   } else if (Array.isArray(scenario.personas) && scenario.personas.length) {
     // мульти-персонаж «совещание»
     maxTokens = 400;
@@ -104,6 +108,7 @@ ${list}
       if (s === -1 || e === -1) throw new Error('no json');
       return res.json(JSON.parse(text.slice(s, e + 1)));
     }
+    if (phase === 'coach') return res.json({ text });
     if (Array.isArray(scenario.personas) && scenario.personas.length) {
       const s = text.indexOf('{'), e = text.lastIndexOf('}');
       if (s !== -1 && e !== -1) {

@@ -233,6 +233,8 @@
     .meet-tile .mrole { font-size: 10px; color: var(--muted); }
     .meet-tile.user video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
     .meet-badge { position: absolute; bottom: 6px; left: 6px; background: rgba(0,0,0,.5); padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; color: #fff; }
+    .coach-tip { margin: 0 16px 10px; background: rgba(255,177,153,.14); border: 1px solid var(--secondary); border-radius: 14px; padding: 12px 14px; font-size: 14px; line-height: 1.45; cursor: pointer; }
+    .call-btn.coach { width: 56px; height: 56px; font-size: 22px; background: var(--card); border: 1px solid var(--secondary); color: var(--secondary); }
   </style>
 </head>
 <body>
@@ -369,6 +371,21 @@ const ROLEPLAYS = [
     situation:'Первое свидание. Цель — расположить к себе и наладить живой, тёплый контакт.',
     role:'человек на первом свидании: раскрывается при искреннем интересе и тепле, скучает от односложности и эгоцентризма',
     opener:'Привет 🙂 Ну вот, неловкое начало позади. Расскажи — ты вообще как тут оказался?' },
+  { id:'passive', icon:'😏', title:'Пассивная агрессия', diff:'hard', mode:'difficult',
+    name:'Олег', roleTitle:'коллега', face:'😏', faceBg:'#FF9F45',
+    situation:'Коллега язвит исподтишка. Цель — спокойно обозначить границу, не скатившись в склоку.',
+    role:'коллега Олег, который пассивно-агрессивно подкалывает и уходит от прямого конфликта; уважает спокойную твёрдость, заводится от ответной грубости',
+    opener:'О, ну наконец-то ты закончил. Я уж думал, мы до вечера ждать будем 🙂' },
+  { id:'sayno', icon:'🚫', title:'Сказать «нет»', diff:'medium', mode:'persuade',
+    name:'Марат', roleTitle:'просит об услуге', face:'😅', faceBg:'#FFB199',
+    situation:'На тебя давят просьбой, на которую ты не хочешь соглашаться. Цель — отказать твёрдо и без вины.',
+    role:'знакомый Марат, который настойчиво просит об услуге и давит на чувство вины, если ты колеблешься',
+    opener:'Слушай, выручи в последний раз, а? Тебе же несложно, а мне правда очень надо.' },
+  { id:'networking', icon:'🥂', title:'Нетворкинг', diff:'medium', mode:'connect',
+    name:'Ирина', roleTitle:'на конференции', face:'😊', faceBg:'#4ADE80',
+    situation:'Конференция, рядом интересный человек. Цель — завязать живой разговор и запомниться.',
+    role:'человек на конференции Ирина: приветлива, но занята; раскрывается при искреннем интересе, скучает от формальностей',
+    opener:'(стоите рядом у кофе) …тоже прячетесь от духоты в зале? 🙂' },
   { id:'board', icon:'🏛️', title:'Питч совету директоров', diff:'hard', mode:'persuade',
     situation:'Ты презентуешь свой продукт совету компании. Их трое, у каждого свой интерес — нужно убедить всех.',
     personas:[
@@ -387,6 +404,13 @@ const RP_MODES = {
   support:   { emoji:'🫂', goal:'Поддержать — чтобы стало легче' },
 };
 function rpMode(sc) { return RP_MODES[sc && sc.mode] || RP_MODES.persuade; }
+// Категории библиотеки сценариев
+const RP_CATS = [
+  { name:'Карьера',  ids:['interview','qa','negotiation','raise','board'] },
+  { name:'Конфликт', ids:['passive','sayno'] },
+  { name:'Общение',  ids:['self','networking'] },
+  { name:'Личное',   ids:['friend','partner','date'] },
+];
 
 // ожидаемый результат и срок по категории (для экрана «Объяснение»)
 const RESULT_BY_CAT = {
@@ -1792,23 +1816,28 @@ function renderRoleplayList() {
         <div style="flex:1;min-width:0">
           <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;opacity:.85">Под тебя · AI</div>
           <div style="font-size:18px;font-weight:800;margin-top:2px">Твоя ситуация</div>
-          <div style="font-size:13px;opacity:.88;margin-top:2px">Опиши свой реальный разговор — соберём разговор под него</div>
+          <div style="font-size:13px;opacity:.88;margin-top:2px">Опиши свой реальный разговор — соберём собеседника под него</div>
         </div>
       </div>
     </div>
-    <div class="gap-10" style="margin-top:16px">
-      ${ROLEPLAYS.map(sc=>{
-        const locked = !canDoRoleplay(sc.id);
-        const dl = { easy:'легко', medium:'средне', hard:'сложно' }[sc.diff];
-        const dc = { easy:'d-e', medium:'d-m', hard:'d-h' }[sc.diff];
-        return `
-        <div class="ex-card" data-rp="${sc.id}" style="${locked?'opacity:.62':''}">
-          <div class="ex-ico" style="background:var(--card);font-size:22px">${sc.icon}</div>
-          <div class="ex-info"><div class="ex-title">${sc.title}</div><div class="ex-desc">${locked?'Доступно в подписке':sc.situation}</div></div>
-          <div class="ex-meta">${locked?'<div style="font-size:18px">🔒</div>':`<div class="ex-diff ${dc}">${dl}</div>`}</div>
-        </div>`;
-      }).join('')}
-    </div>
+    ${RP_CATS.map(cat=>{
+      const items = cat.ids.map(id=>ROLEPLAYS.find(s=>s.id===id)).filter(Boolean);
+      if (!items.length) return '';
+      return `
+      <p class="lbl" style="margin-top:22px">${cat.name}</p>
+      <div class="gap-10">
+        ${items.map(sc=>{
+          const locked = !canDoRoleplay(sc.id);
+          const m = rpMode(sc);
+          return `
+          <div class="ex-card" data-rp="${sc.id}" style="${locked?'opacity:.62':''}">
+            <div class="ex-ico" style="background:var(--card);font-size:22px">${sc.icon}</div>
+            <div class="ex-info"><div class="ex-title">${sc.title}</div><div class="ex-desc">${locked?'Доступно в подписке':sc.situation}</div></div>
+            <div class="ex-meta">${locked?'<div style="font-size:18px">🔒</div>':`<div style="font-size:18px" title="${m.goal}">${m.emoji}</div>`}</div>
+          </div>`;
+        }).join('')}
+      </div>`;
+    }).join('')}
   </div>`;
 }
 
@@ -1935,7 +1964,11 @@ function renderRpChat() {
       ${rp.loading?loadingDots():''}
     </div>
     <div class="chat-inp-area">
-      ${userTurns>=1 ? `<button class="btn btn-g" id="rp-finish" style="margin-bottom:10px">Завершить и получить разбор ✓</button>` : ''}
+      ${coachOverlayHtml(rp)}
+      <div style="display:flex;gap:8px;margin-bottom:10px">
+        <button class="link" id="coach-btn" style="font-size:13px">💡 Совет Алмата</button>
+        ${userTurns>=1 ? `<button class="btn btn-g" id="rp-finish" style="flex:1;padding:10px">Завершить ✓</button>` : ''}
+      </div>
       <div class="chat-row">
         <button class="chat-send" id="rp-mic" style="background:var(--card);border:1px solid var(--border)">🎤</button>
         <input class="chat-inp" id="rp-input" placeholder="Ответь голосом или текстом..." autocomplete="off">
@@ -2015,11 +2048,13 @@ function renderRpCallMeeting() {
       <div class="call-status" id="call-status" style="margin-top:16px">${status}</div>
       <div class="call-sub" id="call-sub" style="padding:0 24px">${lastAI ? `<b style="color:var(--secondary)">${activeP?activeP.name:''}:</b> ${lastAI.text}` : ''}</div>
     </div>
+    ${coachOverlayHtml(rp)}
     <div class="call-textrow">
       <input class="chat-inp" id="rp-input" placeholder="…или напиши ответ" autocomplete="off">
       <button class="chat-send" id="rp-send">→</button>
     </div>
     <div class="call-controls">
+      <button class="call-btn coach" id="coach-btn" title="Совет Алмата">💡</button>
       <button class="call-btn mic ${rp.callStatus==='listening'?'on':''}" id="call-mic">${rp.callStatus==='listening'?'⏹':'🎤'}</button>
     </div>
     ${userTurns>=1
@@ -2049,11 +2084,13 @@ function renderRpCall() {
       <div class="call-status" id="call-status" style="margin-top:14px">${status}</div>
       <div class="call-sub" id="call-sub">${lastAI ? lastAI.text : ''}</div>
     </div>
+    ${coachOverlayHtml(rp)}
     <div class="call-textrow">
       <input class="chat-inp" id="rp-input" placeholder="…или напиши ответ" autocomplete="off">
       <button class="chat-send" id="rp-send">→</button>
     </div>
     <div class="call-controls">
+      <button class="call-btn coach" id="coach-btn" title="Совет Алмата">💡</button>
       <button class="call-btn mic ${rp.callStatus==='listening'?'on':''}" id="call-mic">${rp.callStatus==='listening'?'⏹':'🎤'}</button>
     </div>
     ${userTurns>=1
@@ -2182,6 +2219,26 @@ function stopCallMedia() {
   if (rp && rp.stream) { try { rp.stream.getTracks().forEach(t=>t.stop()); } catch(e){} rp.stream = null; }
 }
 
+// ── Алмат-коуч «в углу ринга»: быстрый совет по ходу разговора ──
+function coachOverlayHtml(rp) {
+  if (rp.coachLoading) return `<div class="coach-tip">💡 <b>Алмат думает…</b></div>`;
+  if (rp.coachTip) return `<div class="coach-tip" id="coach-tip">💡 <b>Алмат:</b> ${rp.coachTip} <span style="color:var(--muted);font-size:11px">· скрыть</span></div>`;
+  return '';
+}
+async function coachAsk() {
+  const rp = S.roleplay; if (!rp || rp.coachLoading) return;
+  rp.coachLoading = true; rp.coachTip = null; render();
+  const transcript = rp.msgs.map(m => m.role==='user' ? 'Я: '+m.text : ((rpSpeakerName(rp,m.speaker)||'Собеседник')+': '+m.text)).join('\n');
+  try {
+    const res = await fetch('/api/roleplay', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ scenario: rpScenario(rp), messages:[{ role:'user', content:'Диалог пока:\n'+transcript+'\n\nДай совет для моей следующей реплики.' }], phase:'coach' }) });
+    const data = await res.json();
+    rp.coachTip = (res.ok && data.text) ? data.text : 'Совет недоступен — попробуй ещё раз.';
+  } catch(e) { rp.coachTip = 'Совет недоступен — проверь связь.'; }
+  rp.coachLoading = false; render();
+}
+function coachDismiss() { if (S.roleplay) { S.roleplay.coachTip = null; render(); } }
+
 function openRoleplay(sc, fromPlan=false) {
   if (!canDoRoleplay(sc.id)) { showSubModal('exercise'); return; }
   if (energyBlocked()) { showSubModal('energy'); return; }
@@ -2274,6 +2331,9 @@ function bindRoleplay() {
   // call
   document.getElementById('call-mic')?.addEventListener('click', callListen);
   document.getElementById('call-end')?.addEventListener('click', finishRoleplay);
+  // Алмат-коуч
+  document.getElementById('coach-btn')?.addEventListener('click', coachAsk);
+  document.getElementById('coach-tip')?.addEventListener('click', coachDismiss);
   // chat
   document.getElementById('rp-mic')?.addEventListener('click', rpMic);
   document.getElementById('rp-finish')?.addEventListener('click', finishRoleplay);
