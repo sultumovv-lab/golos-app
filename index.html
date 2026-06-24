@@ -501,6 +501,26 @@ const store = {
 };
 
 // ═══════════════════════════════════════════
+// ИКОНКИ (инлайн-SVG, наследуют currentColor) — для навигации и контролов
+// ═══════════════════════════════════════════
+const ICONS = {
+  sun:    '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+  target: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none"/>',
+  robot:  '<rect x="4" y="8.5" width="16" height="11" rx="2.5"/><path d="M12 8.5V4.5M9 4.5h6"/><circle cx="9.5" cy="14" r="1.1" fill="currentColor" stroke="none"/><circle cx="14.5" cy="14" r="1.1" fill="currentColor" stroke="none"/>',
+  chart:  '<path d="M4 5v14h16"/><path d="M7 14l3.5-4 3 2L19 7"/>',
+  play:   '<path d="M8 5.5v13l11-6.5z" fill="currentColor" stroke="none"/>',
+  mic:    '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M9 21h6"/>',
+  bulb:   '<path d="M9.5 18h5M10 21h4"/><path d="M12 3a6 6 0 0 0-4 10.5c.6.6.9 1.4 1 2.5h6c.1-1.1.4-1.9 1-2.5A6 6 0 0 0 12 3z"/>',
+  phone:  '<path d="M5 4h3.5l1.8 4.5-2.3 1.4a11 11 0 0 0 5.1 5.1l1.4-2.3L19 15.5V19a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z" fill="currentColor" stroke="none"/>',
+  lock:   '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7.5a4 4 0 0 1 8 0V11"/>',
+  bolt:   '<path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z" fill="currentColor" stroke="none"/>',
+};
+function ic(name, size = 24) {
+  const p = ICONS[name]; if (!p) return '';
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle">${p}</svg>`;
+}
+
+// ═══════════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════════
 let S = {
@@ -703,14 +723,14 @@ function render() {
 
 function renderNav() {
   const tabs = [
-    { id:'home',      icon:'☀️', label:'Сегодня'    },
-    { id:'exercises', icon:'🎯', label:'Упражнения' },
-    { id:'coach',     icon:'🤖', label:'AI-Коуч'    },
-    { id:'progress',  icon:'📈', label:'Прогресс'   },
+    { id:'home',      icon:'sun',    label:'Сегодня'    },
+    { id:'exercises', icon:'target', label:'Упражнения' },
+    { id:'coach',     icon:'robot',  label:'AI-Коуч'    },
+    { id:'progress',  icon:'chart',  label:'Прогресс'   },
   ];
   return `<nav class="nav">${tabs.map(t=>`
     <button class="nav-btn ${S.tab===t.id?'active':''}" data-tab="${t.id}">
-      <span class="nav-icon">${t.icon}</span>
+      <span class="nav-icon" style="color:${S.tab===t.id?'var(--primary)':'var(--dim)'}">${ic(t.icon,24)}</span>
       <span class="nav-label ${S.tab===t.id?'on':''}">${t.label}</span>
     </button>`).join('')}</nav>`;
 }
@@ -813,7 +833,7 @@ function renderToday() {
       <div class="card" style="margin-bottom:16px">
         <div class="row-between" style="margin-bottom:12px">
           <span class="lbl" style="margin:0">Эта неделя</span>
-          <span style="font-size:13px;font-weight:700;color:var(--gold)">⚡ ${hasFullAccess() ? '∞' : energy + '/' + MAX_ENERGY} энергии</span>
+          <span style="font-size:13px;font-weight:700;color:var(--gold);display:inline-flex;align-items:center;gap:4px">${ic('bolt',13)} ${hasFullAccess() ? '∞' : energy + '/' + MAX_ENERGY} энергии</span>
         </div>
         <div style="display:flex;justify-content:space-between">
           ${dots.map(d=>`<div style="flex:1;text-align:center">
@@ -1093,10 +1113,10 @@ function recordButtonHtml() {
     <button class="rec-btn rec-on" id="rec-mic"><span class="rec-pulse"></span>⏹</button>
     <div style="font-size:14px;color:var(--primary);margin-top:12px;font-weight:700" id="rec-timer">${S.vTimeLeft}с</div>`;
   if (S.vHasRec) return `
-    <button class="rec-btn rec-done" id="rec-play">▶</button>
+    <button class="rec-btn rec-done" id="rec-play">${ic('play',24)}</button>
     <div style="margin-top:12px"><span style="color:var(--green);font-weight:700;font-size:14px">✓ Записано</span> · <button class="link" id="rec-redo" style="font-size:13px">перезаписать</button></div>`;
   return `
-    <button class="rec-btn" id="rec-mic">🎤</button>
+    <button class="rec-btn" id="rec-mic">${ic('mic',30)}</button>
     <div style="font-size:13px;color:var(--muted);margin-top:12px">Нажми и прочитай фразу вслух</div>`;
 }
 
@@ -1148,7 +1168,7 @@ function renderFinish() {
 let mediaRec = null, mediaChunks = [], mediaStream = null, journalAudio = null, journalBtn = null;
 function stopJournal() {
   if (journalAudio) { try { journalAudio.pause(); } catch (e) {} journalAudio = null; }
-  if (journalBtn) { journalBtn.innerHTML = '▶'; journalBtn.classList.remove('playing'); journalBtn = null; }
+  if (journalBtn) { journalBtn.innerHTML = ic('play',18); journalBtn.classList.remove('playing'); journalBtn = null; }
 }
 async function startVoiceRec() {
   if (!navigator.mediaDevices?.getUserMedia) { alert('Запись недоступна в этом окружении. Можно пропустить.'); return; }
@@ -1509,7 +1529,7 @@ function renderVoiceJournal() {
       return `<div class="ex-card">
         <div class="ex-ico" style="background:var(--card)">🎙</div>
         <div class="ex-info"><div class="ex-title" style="font-size:14px">${title} <span style="color:var(--secondary);font-size:12px">· ${ph}</span></div><div class="ex-desc">${ds}</div></div>
-        <div class="ex-meta">${v.url ? `<button class="chat-send" data-voice="${v.url}" style="background:var(--card);border:1px solid var(--primary);color:var(--primary);width:42px;height:42px;font-size:16px">▶</button>` : ''}</div>
+        <div class="ex-meta">${v.url ? `<button class="chat-send" data-voice="${v.url}" style="background:var(--card);border:1px solid var(--primary);color:var(--primary);width:42px;height:42px;font-size:16px">${ic('play',18)}</button>` : ''}</div>
       </div>`;
     }).join('') + `</div>`;
   }
@@ -2065,7 +2085,7 @@ function renderRpIntro() {
       <p class="lbl">📞 Как это работает</p>
       <p style="font-size:13px;color:var(--muted);line-height:1.55">${sc.personas ? 'Это видеозвонок-совещание: несколько участников, у каждого свой интерес. Говори вслух или текстом — отвечает тот, кто среагирует.' : 'Это видеозвонок: включи камеру и микрофон, говори вслух — собеседник отвечает голосом.'} В конце Алмат разберёт, как ты держался.</p>
     </div>
-    <div class="mt" style="width:100%;max-width:340px"><button class="btn btn-p" id="rp-callstart">📞 Начать звонок</button></div>
+    <div class="mt" style="width:100%;max-width:340px"><button class="btn btn-p" id="rp-callstart" style="display:inline-flex;align-items:center;justify-content:center;gap:8px">${ic('phone',18)} Начать звонок</button></div>
     <button class="link" style="margin-top:12px" id="rp-textstart">Лучше текстом →</button>
     <button class="btn" style="background:none;color:var(--muted);margin-top:4px;max-width:340px" id="rp-close">Назад</button>
   </div></div>`;
@@ -2090,11 +2110,11 @@ function renderRpChat() {
     <div class="chat-inp-area">
       ${coachOverlayHtml(rp)}
       <div style="display:flex;gap:8px;margin-bottom:10px">
-        <button class="link" id="coach-btn" style="font-size:13px">💡 Совет Алмата</button>
+        <button class="link" id="coach-btn" style="font-size:13px;display:inline-flex;align-items:center;gap:5px">${ic('bulb',15)} Совет Алмата</button>
         ${userTurns>=1 ? `<button class="btn btn-g" id="rp-finish" style="flex:1;padding:10px">Завершить ✓</button>` : ''}
       </div>
       <div class="chat-row">
-        <button class="chat-send" id="rp-mic" style="background:var(--card);border:1px solid var(--border)">🎤</button>
+        <button class="chat-send" id="rp-mic" style="background:var(--card);border:1px solid var(--border)">${ic('mic',20)}</button>
         <input class="chat-inp" id="rp-input" placeholder="Ответь голосом или текстом..." autocomplete="off">
         <button class="chat-send" id="rp-send">→</button>
       </div>
@@ -2178,8 +2198,8 @@ function renderRpCallMeeting() {
       <button class="chat-send" id="rp-send">→</button>
     </div>
     <div class="call-controls">
-      <button class="call-btn coach" id="coach-btn" title="Совет Алмата">💡</button>
-      <button class="call-btn mic ${rp.callStatus==='listening'?'on':''}" id="call-mic">${rp.callStatus==='listening'?'⏹':'🎤'}</button>
+      <button class="call-btn coach" id="coach-btn" title="Совет Алмата">${ic('bulb',22)}</button>
+      <button class="call-btn mic ${rp.callStatus==='listening'?'on':''}" id="call-mic">${rp.callStatus==='listening'?'⏹':ic('mic',28)}</button>
     </div>
     ${userTurns>=1
       ? `<div style="width:100%;max-width:360px;padding:0 20px calc(20px + env(safe-area-inset-bottom))"><button class="btn btn-g" id="call-end">Завершить и получить разбор ✓</button></div>`
@@ -2214,8 +2234,8 @@ function renderRpCall() {
       <button class="chat-send" id="rp-send">→</button>
     </div>
     <div class="call-controls">
-      <button class="call-btn coach" id="coach-btn" title="Совет Алмата">💡</button>
-      <button class="call-btn mic ${rp.callStatus==='listening'?'on':''}" id="call-mic">${rp.callStatus==='listening'?'⏹':'🎤'}</button>
+      <button class="call-btn coach" id="coach-btn" title="Совет Алмата">${ic('bulb',22)}</button>
+      <button class="call-btn mic ${rp.callStatus==='listening'?'on':''}" id="call-mic">${rp.callStatus==='listening'?'⏹':ic('mic',28)}</button>
     </div>
     ${userTurns>=1
       ? `<div style="width:100%;max-width:360px;padding:0 20px calc(20px + env(safe-area-inset-bottom))"><button class="btn btn-g" id="call-end">Завершить и получить разбор ✓</button></div>`
@@ -2326,7 +2346,7 @@ function updateCallUI() {
   if (rp.sc.personas) { render(); return; }   // совещание — перерисовываем всю сетку
   const st = document.getElementById('call-status'); if (st) st.textContent = CALL_STATUS[rp.callStatus] || '';
   const av = document.getElementById('call-avatar'); if (av) av.classList.toggle('speaking', rp.callStatus==='speaking');
-  const mic = document.getElementById('call-mic'); if (mic) { mic.classList.toggle('on', rp.callStatus==='listening'); mic.textContent = rp.callStatus==='listening' ? '⏹' : '🎤'; }
+  const mic = document.getElementById('call-mic'); if (mic) { mic.classList.toggle('on', rp.callStatus==='listening'); mic.innerHTML = rp.callStatus==='listening' ? '⏹' : ic('mic',28); }
   const sub = document.getElementById('call-sub');
   if (sub) {
     if (rp.callStatus === 'thinking') sub.textContent = '…';
