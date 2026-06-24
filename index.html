@@ -235,6 +235,21 @@
     .meet-badge { position: absolute; bottom: 6px; left: 6px; background: rgba(0,0,0,.5); padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; color: #fff; }
     .coach-tip { margin: 0 16px 10px; background: rgba(255,177,153,.14); border: 1px solid var(--secondary); border-radius: 14px; padding: 12px 14px; font-size: 14px; line-height: 1.45; cursor: pointer; }
     .call-btn.coach { width: 56px; height: 56px; font-size: 22px; background: var(--card); border: 1px solid var(--secondary); color: var(--secondary); }
+
+    /* ─── Анимации иконок ─── */
+    /* эквалайзер на кнопке проигрывания записи */
+    .eq { display: inline-flex; gap: 3px; align-items: center; height: 18px; color: currentColor; }
+    .eq i { width: 3px; height: 6px; background: currentColor; border-radius: 2px; animation: eqb .9s ease-in-out infinite; }
+    .eq i:nth-child(2) { animation-delay: .18s; }
+    .eq i:nth-child(3) { animation-delay: .36s; }
+    @keyframes eqb { 0%,100% { height: 5px; } 50% { height: 16px; } }
+    /* отклик на нажатие */
+    .btn:active { transform: scale(.985); }
+    .ex-card:active, .cat-card:active, .step-card:active { transform: scale(.99); }
+    .chat-send:active, .call-btn:active, .nav-btn:active { transform: scale(.92); }
+    /* активная иконка нижней навигации */
+    .nav-icon { display: inline-block; transition: transform .2s ease; }
+    .nav-btn.active .nav-icon { transform: translateY(-2px) scale(1.16); }
   </style>
 </head>
 <body>
@@ -694,7 +709,7 @@ function renderNav() {
     { id:'progress',  icon:'📈', label:'Прогресс'   },
   ];
   return `<nav class="nav">${tabs.map(t=>`
-    <button class="nav-btn" data-tab="${t.id}">
+    <button class="nav-btn ${S.tab===t.id?'active':''}" data-tab="${t.id}">
       <span class="nav-icon">${t.icon}</span>
       <span class="nav-label ${S.tab===t.id?'on':''}">${t.label}</span>
     </button>`).join('')}</nav>`;
@@ -1130,7 +1145,11 @@ function renderFinish() {
 }
 
 // ── Voice recording (MediaRecorder) ──
-let mediaRec = null, mediaChunks = [], mediaStream = null, journalAudio = null;
+let mediaRec = null, mediaChunks = [], mediaStream = null, journalAudio = null, journalBtn = null;
+function stopJournal() {
+  if (journalAudio) { try { journalAudio.pause(); } catch (e) {} journalAudio = null; }
+  if (journalBtn) { journalBtn.innerHTML = '▶'; journalBtn.classList.remove('playing'); journalBtn = null; }
+}
 async function startVoiceRec() {
   if (!navigator.mediaDevices?.getUserMedia) { alert('Запись недоступна в этом окружении. Можно пропустить.'); return; }
   try {
@@ -1861,15 +1880,21 @@ function bindGlobal() {
   // Paywall triggers (могут быть несколько на экране)
   document.querySelectorAll('[data-sub]').forEach(el =>
     el.addEventListener('click', () => showSubModal(el.dataset.sub || '')));
-  // Проигрывание записей голосового дневника
+  // Проигрывание записей голосового дневника (с анимацией эквалайзера)
   document.querySelectorAll('[data-voice]').forEach(el =>
     el.addEventListener('click', () => {
+      if (journalBtn === el) { stopJournal(); return; }   // повторное нажатие — стоп
+      stopJournal();
       try {
-        if (journalAudio) { journalAudio.pause(); journalAudio = null; }
         journalAudio = new Audio(el.dataset.voice);
-        journalAudio.play().catch(() => alert('Не получилось воспроизвести запись здесь. Попробуй обновить приложение или послушать позже.'));
+        journalBtn = el;
+        el.classList.add('playing');
+        el.innerHTML = '<span class="eq"><i></i><i></i><i></i></span>';
+        journalAudio.onended = stopJournal;
+        journalAudio.onerror = () => { stopJournal(); alert('Не получилось воспроизвести запись.'); };
+        journalAudio.play().catch(() => { stopJournal(); alert('Не получилось воспроизвести запись здесь.'); });
         tg.HapticFeedback.impactOccurred('light');
-      } catch (e) {}
+      } catch (e) { stopJournal(); }
     }));
 }
 
